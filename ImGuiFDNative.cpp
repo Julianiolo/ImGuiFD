@@ -126,7 +126,7 @@ ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path, boo
 			IM_ASSERT(namelist[i] != NULL);
 			if (namelist[i]->d_name[0] != '.' || (strcmp(namelist[i]->d_name,".") != 0 && strcmp(namelist[i]->d_name,"..") != 0)) {
 				entrys.push_back(DirEntry());
-				setupDirEnt(&entrys.back(), i, namelist[i], path);
+				setupDirEnt(&entrys.back(), i+ImHashStr(path)<<12, namelist[i], path);
 			}
 			free(namelist[i]);
 		}

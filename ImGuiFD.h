@@ -66,14 +66,13 @@ namespace ImGuiFD {
 
 
         bool loadingFinished = false;
-        bool stillNeeded = true;
 
         uint64_t getSize() const;
     };
-    typedef void (*LoadFileDataCallback)(const DirEntry& entry, int maxDimSize, FileData* out);
-    typedef void (*UnloadFileDataCallback)(const FileData& fileData);
+    typedef FileData* (*RequestFileDataCallback)(const DirEntry& entry, int maxDimSize);
+    typedef void (*FreeFileDataCallback)(ImGuiID id);
 
-    void SetFileDataCallback(LoadFileDataCallback loadCallB, UnloadFileDataCallback unloadCallB);
+    void SetFileDataCallback(RequestFileDataCallback loadCallB, FreeFileDataCallback unloadCallB);
 
     void OpenFileDialog(const char* str_id, const char* filter, const char* path, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
     void OpenDirDialog(const char* str_id, const char* path, ImGuiFDDialogFlags flags = 0);
@@ -91,6 +90,8 @@ namespace ImGuiFD {
     const char* GetSelectionPathString(size_t ind);
 
     void DrawDebugWin(const char* str_id);
+
+    void Shutdown();
 }
 
 
