@@ -288,62 +288,36 @@ namespace ImGuiFD {
 		}
 
 	private:
-		ds::map<FileData*> data;
-		ds::vector<ImGuiID> order;
-		uint64_t maxSize_ = 100000000;
+		ds::set<ImGuiID> loaded;
 	public:
-		static LoadFileDataCallback loadFileDataCallB;
-		static UnloadFileDataCallback unloadFileDataCallB;
+		static RequestFileDataCallback requestFileDataCallB;
+		static FreeFileDataCallback freeFileDataCallB;
 
 		FileData* get(const DirEntry& entry) {
-			if (entry.size != (uint64_t)-1 && entry.size > maxSize_ / 4)
+			if(!requestFileDataCallB)
 				return 0;
 
-			if (!data.contains(entry.id)) {
-				if (loadFileDataCallB) {
-					FileData* fd = (FileData*)IM_ALLOC(sizeof(FileData));
-					*fd = FileData();
-					fd->thumbnail = 0;
-					fd->loadingFinished = false;
-					fd->stillNeeded = true;
+			if(!loaded.contains(entry.id))
+				loaded.add(entry.id);
 
-					data.insert(entry.id, fd);
-					loadFileDataCallB(entry, 300, fd);
-					
-					order.push_back(entry.id);
-				}
-				else
-					return 0;
-			}
-			return data.getByID(entry.id);
+			return requestFileDataCallB(entry, 300);
 		}
 
 		void clear() {
-			for (int32_t i = order.size()-1; i >= 0; i--) {
-				FileData* fd = data.getByID(order[i]);
-				if (fd->loadingFinished) {
-					unloadFileDataCallB(*fd);
-					data.erase(order[i]);
-					order.erase(order.begin()+i);
-				}
-				else {
-					fd->stillNeeded = false;
-				}
+			if(!freeFileDataCallB)
+				return;
+
+			for (auto& l : loaded) {
+				freeFileDataCallB(l);
 			}
+			loaded.clear();
 		}
 
 		uint64_t maxSize() const {
-			return maxSize_;
+			return 0;
 		}
 		uint64_t size() const {
 			return 0;
-		}
-
-		const ds::map<FileData*>& getData() const {
-			return data;
-		}
-		const ds::vector<ImGuiID>& getOrder() const {
-			return order;
 		}
 	};
 	
@@ -379,6 +353,7 @@ namespace ImGuiFD {
 				updateFilter();
 			}
 
+			// return true if it was able to load the directory
 			bool update(const char* dir) {
 				auto res = Native::loadDirEnts(dir, &loadedSucessfully);
 				if(loadedSucessfully)
@@ -1218,8 +1193,8 @@ namespace ImGuiFD {
 	}
 }
 
-ImGuiFD::LoadFileDataCallback ImGuiFD::FileDataCache::loadFileDataCallB = 0;
-ImGuiFD::UnloadFileDataCallback ImGuiFD::FileDataCache::unloadFileDataCallB = 0;
+ImGuiFD::RequestFileDataCallback ImGuiFD::FileDataCache::requestFileDataCallB = 0;
+ImGuiFD::FreeFileDataCallback ImGuiFD::FileDataCache::freeFileDataCallB = 0;
 
 ImGuiFD::DirEntry::DirEntry() {
 
@@ -1253,9 +1228,9 @@ uint64_t ImGuiFD::FileData::getSize() const {
 	return size;
 }
 
-void ImGuiFD::SetFileDataCallback(LoadFileDataCallback loadCallB, UnloadFileDataCallback unloadCallB) {
-	FileDataCache::loadFileDataCallB = loadCallB;
-	FileDataCache::unloadFileDataCallB = unloadCallB;
+void ImGuiFD::SetFileDataCallback(RequestFileDataCallback loadCallB, FreeFileDataCallback unloadCallB) {
+	FileDataCache::requestFileDataCallB = loadCallB;
+	FileDataCache::freeFileDataCallB = unloadCallB;
 }
 
 void ImGuiFD::OpenFileDialog(const char* str_id, const char* filter, const char* path, ImGuiFDDialogFlags flags, size_t maxSelections) {
@@ -1429,7 +1404,7 @@ void ImGuiFD::DrawDebugWin(const char* str_id) {
 		float perc = ((float)fd->fileDataCache.size() / (float)fd->fileDataCache.maxSize())*100;
 		ImGui::Text("DataLoader: %" PRIu64 "/%" PRIu64 "(%f%%) used", fd->fileDataCache.size(), fd->fileDataCache.maxSize(), perc);
 
-		ImGui::Text("%d loaded", fd->fileDataCache.getOrder().size());
+		/*ImGui::Text("%d loaded", fd->fileDataCache.getOrder().size());
 
 		if (ImGui::BeginTable("Loaded", 5)) {
 			const auto& order = fd->fileDataCache.getOrder();
@@ -1457,10 +1432,14 @@ void ImGuiFD::DrawDebugWin(const char* str_id) {
 			}
 
 			ImGui::EndTable();
-		}
+		}*/
 
 	}
 	ImGui::End();
 
 	fd = 0;
+}
+
+void ImGuiFD::Shutdown() {
+	openDialogs.clear(); // this is crucial to call all the deconstructors before the stuff they depend on gets shut down
 }
