@@ -82,8 +82,8 @@ namespace ImGuiFD {
     bool BeginDialog(const char* str_id);
     void EndDialog();
 
-    bool ActionDone();
-    bool SelectionMade();
+    bool ActionDone(); // was Open/Cancel (=> anything) pressed?
+    bool SelectionMade(); // was Open and not Cancel pressed?
     const char* GetSelectionStringRaw();
     size_t GetSelectionStringsAmt();
     const char* GetSelectionNameString(size_t ind);
