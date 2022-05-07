@@ -94,8 +94,10 @@ namespace ds {
 			return data.Data;
 		}
 
-		inline string substr(size_t from, size_t to) const {
-			return ds::string(data.begin() + from, data.begin() + to);
+		inline string substr(ptrdiff_t from, ptrdiff_t to) const {
+			size_t from_ = from >= 0 ? from : len() - 2 - from;
+			size_t to_ = to >= 0 ? to : len() - 2 - to;
+			return ds::string(data.begin() + from_, data.begin() + to_);
 		}
 
 		inline size_t len() const {
