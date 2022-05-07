@@ -422,6 +422,7 @@ namespace ImGuiFD {
 		size_t maxSelections;
 		
 		ds::string inputText = "";
+		ds::string newFolderNameStr = "";
 
 		bool needsEntrysUpdate = false;
 
@@ -437,6 +438,7 @@ namespace ImGuiFD {
 			isFileDialog(isFileDialog), isModal((flags&ImGuiFDDialogFlags_Modal)!=0), hasFilter(filter != NULL), maxSelections(maxSelections)
 		{
 			updateEntrys();
+			setInputTextToSelected();
 		};
 
 		void dirSetTo(const char* str) {
@@ -471,7 +473,12 @@ namespace ImGuiFD {
 
 		void setInputTextToSelected() {
 			if (selected.size() == 0) {
-				inputText = "";
+				if (isFileDialog) {
+					inputText = "";
+				}
+				else {
+					inputText = currentPath.toString(); // if selecting a directory, always have the folder we are in as default if nothing is selected
+				}
 			}
 			else {
 				inputText = "\"";
@@ -496,6 +503,7 @@ namespace ImGuiFD {
 			if (needsEntrysUpdate) {
 				needsEntrysUpdate = false;
 				updateEntrys();
+				setInputTextToSelected();
 			}
 		}
 		void updateEntrys() {
@@ -624,11 +632,16 @@ namespace ImGuiFD {
 		tm* tm = localtime(&unixTime);
 		strftime(buf, bufSize, "%d.%m.%y %H:%M", tm);
 	}
-	void formateSize(char* buf, size_t bufSize, uint64_t size) {
+	void formatSize(char* buf, size_t bufSize, uint64_t size) {
 		snprintf(buf, bufSize, "%" PRIu64 " Bytes", size);
 	}
 
-	void ClickedOnEntry(size_t ind, bool isSel) {
+	void ClickedOnEntrySelect(size_t ind, bool isSel, bool isFolder) {
+		if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+			return;
+		if (!fd->isFileDialog && !isFolder)
+			return;
+
 		if (ImGui::GetIO().KeyShift == ImGui::GetIO().KeyCtrl) { // both on or both off => standard select
 			if (isSel) {
 				if (fd->selected.size() != 1) {
@@ -681,8 +694,10 @@ namespace ImGuiFD {
 				fd->dirMoveDownInto(entry.name);
 			}
 			else {
-				fd->actionDone = true;
-				fd->selectionMade = true;
+				if (fd->isFileDialog) {
+					fd->actionDone = true;
+					fd->selectionMade = true;
+				}
 			}
 		}
 	}
@@ -823,7 +838,7 @@ namespace ImGuiFD {
 		ImGuiSelectableFlags flags = ImGuiSelectableFlags_AllowItemOverlap | ImGuiSelectableFlags_SpanAllColumns;
 
 		if (ImGui::Selectable(entry.isFolder?"[DIR]":"[FILE]", isSel, flags)) {
-			ClickedOnEntry(ind, isSel);
+			ClickedOnEntrySelect(ind, isSel, entry.isFolder);
 		}
 
 		CheckDoubleClick(entry);
@@ -834,7 +849,7 @@ namespace ImGuiFD {
 		ImGui::TableNextColumn();
 		if (entry.size != (uint64_t)-1) {
 			char buf[128];
-			formateSize(buf, sizeof(buf), entry.size);
+			formatSize(buf, sizeof(buf), entry.size);
 			ImGui::TextUnformatted(buf);
 		}
 		else
@@ -921,7 +936,7 @@ namespace ImGuiFD {
 
 				ImGui::TableNextColumn();
 				char buf[128];
-				formateSize(buf, sizeof(buf), entry.size);
+				formatSize(buf, sizeof(buf), entry.size);
 				ImGui::TextUnformatted(buf);
 			}
 
@@ -1024,8 +1039,9 @@ namespace ImGuiFD {
 						ImVec2 cursorStart = totalCursorStart + ImVec2{(itemWidth+style.ItemSpacing.x*2)*col, (itemHeight+style.ItemSpacing.y*2)*row};
 						ImVec2 cursorEnd = cursorStart + ImVec2{itemWidth, itemHeight};
 						ImGui::SetCursorPos(cursorStart);
-						if (ImGui::Selectable("", isSel, 0, {itemWidth, itemHeight})) {
-							ClickedOnEntry(ind, isSel);
+						ImGui::Selectable("", isSel, 0, { itemWidth, itemHeight });
+						if (ImGui::IsItemClicked()) { // directly using return value of Selectable doesnt work when going into folder (instantly selects hovered item) => ImGui bug?
+							ClickedOnEntrySelect(ind, isSel, entry.isFolder);
 						}
 
 						CheckDoubleClick(entry);
@@ -1127,8 +1143,57 @@ namespace ImGuiFD {
 				DrawDirFiles_Icons(height);
 				break;
 		}
+
+		if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
+			ImGui::OpenPopup("ContextMenu");
+		}
+
+		bool openNewFolderPopup = false;
+		if (ImGui::BeginPopup("ContextMenu")) {
+			if (ImGui::MenuItem("Clear Selection")) {
+				fd->selected.clear();
+			}
+
+			if (ImGui::MenuItem("New Folder")) {
+				openNewFolderPopup = true;
+			}
+
+			ImGui::EndPopup();
+		}
+		if(openNewFolderPopup)
+			ImGui::OpenPopup("Make New Folder");
+
+		if (ImGui::BeginPopup("Make New Folder")) {
+			ImGui::TextUnformatted("Make a new Folder");
+			ImGui::Separator();
+			ImGui::TextUnformatted("Enter the name of your new folder:");
+
+			utils::InputTextString("EnterNewFolderName", "Enter the name of the new folder", &fd->newFolderNameStr);
+
+			if (ImGui::Button("OK")) {
+				bool success = Native::makeFolder((fd->currentPath.toString() + "/" + fd->newFolderNameStr).c_str());
+				fd->newFolderNameStr = "";
+				fd->needsEntrysUpdate = true;
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Cancel")) {
+				fd->newFolderNameStr = "";
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::EndPopup();
+		}
 	}
 
+
+	bool canOpenNow() {
+		if (fd->isFileDialog) {
+			return fd->selected.size() > 0;
+		}
+		else {
+			return true;
+		}
+	}
 	void DrawTextField() {
 		ImGuiStyle& style = ImGui::GetStyle();
 
@@ -1169,7 +1234,7 @@ namespace ImGuiFD {
 
 		ImGui::SameLine();
 
-		const bool canOpen = fd->selected.size() > 0;
+		const bool canOpen = canOpenNow();
 		if (!canOpen) ImGui::BeginDisabled();
 
 		// Open Button
@@ -1248,13 +1313,8 @@ void ImGuiFD::OpenFileDialog(const char* str_id, const char* filter, const char*
 		return;
 	}
 #endif
-	openDialogs.insert(id, FileDialog(id, str_id, filter, path, true, flags, maxSelections));
-
-	ds::set<size_t> inds;
-	inds.add(0);
-	inds.add(2);
-	inds.add(1);
-	inds.add(1);
+	bool isFileDialog = true;
+	openDialogs.insert(id, FileDialog(id, str_id, filter, path, isFileDialog, flags, maxSelections));
 }
 void ImGuiFD::OpenDirDialog(const char* str_id, const char* path, ImGuiFDDialogFlags flags) {
 	ImGuiID id = ImHashStr(str_id);
@@ -1269,7 +1329,8 @@ void ImGuiFD::OpenDirDialog(const char* str_id, const char* path, ImGuiFDDialogF
 		return;
 	}
 #endif
-	openDialogs.insert(id, FileDialog(id, str_id, NULL, path, false, flags));
+	bool isFileDialog = false;
+	openDialogs.insert(id, FileDialog(id, str_id, NULL, path, isFileDialog, flags));
 }
 
 void ImGuiFD::CloseDialog(const char* str_id) {

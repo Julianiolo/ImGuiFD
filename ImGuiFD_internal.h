@@ -552,5 +552,7 @@ namespace ImGuiFD {
 		bool isValidDir(const char* dir);
 
 		ds::vector<DirEntry> loadDirEnts(const char* path, bool* success = 0, int (*compare)(const void* a, const void* b) = 0);
+
+		bool makeFolder(const char* path);
 	}
 }
