@@ -41,7 +41,14 @@ void setupDirEnt(ImGuiFD::DirEntry* entry, size_t id, const dirent* de, const ch
 	entry->id = id;
 	entry->name = ImStrdup(de->d_name);
 	entry->dir = ImStrdup(dir_);
-	entry->path = ImStrdup((ds::string(entry->dir) + "/" + entry->name).c_str());
+	{
+		ds::string tmp = entry->dir;
+		if (tmp[-1] != '/')
+			tmp += "/";
+		tmp += entry->name;
+
+		entry->path = ImStrdup(tmp.c_str());
+	}
 	entry->isFolder = de->d_type == DT_DIR;
 
 
@@ -159,4 +166,15 @@ bool ImGuiFD::Native::isValidDir(const char* dir) {
 #else
 	return false;
 #endif
+}
+
+bool ImGuiFD::Native::makeFolder(const char* path) {
+	int status;
+#ifdef _MSC_VER
+	status = _mkdir(path+1); // +1 to remove / from beginning of path
+#else
+	status = mkdir(path, S_IRWXU);
+#endif
+
+	return status == 0;
 }
