@@ -727,11 +727,13 @@ namespace ImGuiFD {
 
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, { 2,0 });
 			for (size_t i = 0; i < fd->currentPath.parts.size(); i++) {
+				ImGui::PushID(i);
 				if (i > 0)
 					ImGui::SameLine();
 				if (ImGui::Button(fd->currentPath.parts[i].c_str())) {
 					fd->dirShrinkTo(i);
 				}
+				ImGui::PopID();
 			}
 			ImGui::PopStyleVar();
 
@@ -980,7 +982,7 @@ namespace ImGuiFD {
 		}
 		
 		size_t numOfLines = numOfItems / itemsPerLine;
-		if (numOfItems % itemsPerLineRaw != 0 && numOfLines > 1)
+		if (numOfItems % itemsPerLineRaw != 0 && numOfLines > 0)
 			numOfLines++;
 
 		if (ImGui::BeginChild("IconTable", { 0,height }, true)) {
@@ -1299,8 +1301,6 @@ bool ImGuiFD::BeginDialog(const char* str_id) {
 	if (ImGui::Begin(fd->str_id.c_str(), &open, flags)) {
 		fd->update();
 
-		ImGui::Button("lol");
-
 		if (fd->showLoadErrorMsg) {
 			fd->showLoadErrorMsg = false;
 			ImGui::OpenPopup("Couldn't load directory! ");
@@ -1314,8 +1314,6 @@ bool ImGuiFD::BeginDialog(const char* str_id) {
 			ImGui::EndPopup();
 			goto skip;
 		}
-
-		ImGui::Button("lol");
 		
 		DrawNavigation();
 
