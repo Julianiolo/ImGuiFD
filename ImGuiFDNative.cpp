@@ -41,13 +41,25 @@ void setupDirEnt(ImGuiFD::DirEntry* entry, size_t id, const dirent* de, const ch
 	entry->id = id;
 	entry->name = ImStrdup(de->d_name);
 	entry->dir = ImStrdup(dir_);
-	entry->path = ImStrdup((ds::string(entry->dir) + "/" + entry->name).c_str());
+	{
+		ds::string tmp = entry->dir;
+		if (tmp[-1] != '/')
+			tmp += "/";
+		tmp += entry->name;
+
+		entry->path = ImStrdup(tmp.c_str());
+	}
 	entry->isFolder = de->d_type == DT_DIR;
 
 
 #ifdef DT_HAS_STAT
+#ifdef _MSC_VER
+	struct _stat64 st;
+	__stat64(entry->path, &st);
+#else
 	struct stat st;
 	stat(entry->path, &st);
+#endif
 
 	entry->size = entry->isFolder? -1 : st.st_size;
 	entry->lastModified = st.st_mtime;
@@ -85,26 +97,32 @@ ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path, boo
 #ifdef _WIN32
 	if (strlen(path) == 1 && path[0] == '/') {
 		char buf[512];
-		int amt = GetLogicalDriveStrings(sizeof(buf), buf);
-		if (amt > 0) {
+		int byteLen = GetLogicalDriveStrings(sizeof(buf), buf);
+		if (byteLen > 0) {
+			*success = true;
 			size_t off = 0;
 			size_t id = 0;
 			while (buf[off] != 0) {
 				entrys.push_back(DirEntry());
 				auto& entry = entrys.back();
+
 				ds::string name = buf + off;
-				while (name.len() > 0 && name[-1] == '\\')
-					name = name.substr(0, name.len() - 1);
+				while (name.c_str() > 0 && name[-1] == '\\')
+					name = name.substr(0, -1);
+				
 				entry.name = ImStrdup(name.c_str());
 				entry.dir = ImStrdup("/");
-				entry.path = ImStrdup((ds::string("/") + name).c_str());
+				entry.path = ImStrdup((ds::string("/") + entry.name).c_str());
 
 				entry.isFolder = true;
 				entry.id = id;
 				
-				off += strlen(buf)+1;
+				off += strlen(buf+off)+1;
 				id++;
 			}
+		}
+		else {
+			*success = false;
 		}
 
 		return entrys;
@@ -148,4 +166,15 @@ bool ImGuiFD::Native::isValidDir(const char* dir) {
 #else
 	return false;
 #endif
+}
+
+bool ImGuiFD::Native::makeFolder(const char* path) {
+	int status;
+#ifdef _MSC_VER
+	status = _mkdir(path+1); // +1 to remove / from beginning of path
+#else
+	status = mkdir(path, S_IRWXU);
+#endif
+
+	return status == 0;
 }
