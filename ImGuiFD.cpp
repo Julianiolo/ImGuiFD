@@ -1446,7 +1446,7 @@ const char* ImGuiFD::GetSelectionPathString(size_t ind) {
 
 	IM_ASSERT(ind < fd->selected.size());
 
-	return fd->entrys.getRaw(fd->selected[ind]).path;
+	return Native::makePathStrOSComply(fd->entrys.getRaw(fd->selected[ind]).path);
 }
 
 void ImGuiFD::DrawDebugWin(const char* str_id) {

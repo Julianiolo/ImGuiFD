@@ -41,15 +41,19 @@ void setupDirEnt(ImGuiFD::DirEntry* entry, size_t id, const dirent* de, const ch
 	entry->id = id;
 	entry->name = ImStrdup(de->d_name);
 	entry->dir = ImStrdup(dir_);
+	entry->isFolder = de->d_type == DT_DIR;
 	{
 		ds::string tmp = entry->dir;
 		if (tmp[-1] != '/')
 			tmp += "/";
 		tmp += entry->name;
 
+		if (entry->isFolder)
+			tmp += "/";
+
 		entry->path = ImStrdup(tmp.c_str());
 	}
-	entry->isFolder = de->d_type == DT_DIR;
+	
 
 
 #ifdef DT_HAS_STAT
@@ -106,13 +110,13 @@ ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path, boo
 				entrys.push_back(DirEntry());
 				auto& entry = entrys.back();
 
-				ds::string name = buf + off;
+				ds::string name = ds::string(buf + off);
 				while (name.c_str() > 0 && name[-1] == '\\')
 					name = name.substr(0, -1);
 				
 				entry.name = ImStrdup(name.c_str());
 				entry.dir = ImStrdup("/");
-				entry.path = ImStrdup((ds::string("/") + entry.name).c_str());
+				entry.path = ImStrdup((ds::string("/") + entry.name + "/").c_str());
 
 				entry.isFolder = true;
 				entry.id = id;
@@ -177,4 +181,12 @@ bool ImGuiFD::Native::makeFolder(const char* path) {
 #endif
 
 	return status == 0;
+}
+
+const char* ImGuiFD::Native::makePathStrOSComply(const char* path) {
+#ifdef _WIN32
+	while (*path == '/')
+		path++;
+#endif
+	return path;
 }
