@@ -266,7 +266,7 @@ namespace ImGuiFD {
 
 		static ds::vector<ds::string> parseFilterStr(const char* str) {
 			ds::vector<ds::string> out;
-			size_t len = strlen(str);
+			size_t len = str ? strlen(str) : 0;
 			size_t last = 0;
 			for (size_t i = 0; i < len; i++) {
 				if (str[i] == ',' && i>last) {
