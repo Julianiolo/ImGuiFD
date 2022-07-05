@@ -95,8 +95,8 @@ namespace ds {
 		}
 
 		inline string substr(ptrdiff_t from, ptrdiff_t to) const {
-			size_t from_ = from >= 0 ? from : len() - 2 - from;
-			size_t to_ = to >= 0 ? to : len() - 2 - to;
+			size_t from_ = from >= 0 ? from : len() + from;
+			size_t to_ = to >= 0 ? to : len() + to;
 			return ds::string(data.begin() + from_, data.begin() + to_);
 		}
 
@@ -105,7 +105,7 @@ namespace ds {
 		}
 
 		inline char operator[](ptrdiff_t off) {
-			size_t ind = off >= 0 ? off : len() - 2 - off;
+			size_t ind = off >= 0 ? off : len() + off;
 			return data[ind];
 		}
 
@@ -554,5 +554,7 @@ namespace ImGuiFD {
 		ds::vector<DirEntry> loadDirEnts(const char* path, bool* success = 0, int (*compare)(const void* a, const void* b) = 0);
 
 		bool makeFolder(const char* path);
+
+		const char* makePathStrOSComply(const char* path);
 	}
 }
