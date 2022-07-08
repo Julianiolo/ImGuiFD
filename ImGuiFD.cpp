@@ -1442,7 +1442,7 @@ const char* ImGuiFD::GetSelectionNameString(size_t ind) {
 const char* ImGuiFD::GetSelectionPathString(size_t ind) {
 	IM_ASSERT(fd != 0);
 
-	IM_ASSERT(fd->selectionMade);
+	IM_ASSERT(fd->selectionMade); // maybe you didn't check if a selection was made?
 
 	IM_ASSERT(ind < fd->selected.size());
 

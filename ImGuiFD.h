@@ -7,6 +7,7 @@
 
 #include "imgui.h"
 #include <stdint.h>
+#include <ctime>
 
 namespace ImGuiFD {
     struct DirEntry {
