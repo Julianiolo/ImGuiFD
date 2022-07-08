@@ -11,8 +11,10 @@
 #include <direct.h> // for _getcwd _fullpath
 
 #define GETCWD _getcwd
-#define GETABS _fullpath
 #else
+#include <stdlib.h>
+#include <sys/stat.h>
+
 #define GETCWD getcwd
 #define GETABS realpath
 #endif
@@ -23,8 +25,12 @@
 
 
 ds::string ImGuiFD::Native::getAbsolutePath(const char* path) {
-	if (strlen(path) == 1 && path[0] == '/')
+	size_t len = strlen(path);
+	if (len == 1 && path[0] == '/')
 		return "/";
+
+	if (len == 0)
+		path = ".";
 
 #ifdef _WIN32
 	if (*path == '/')
@@ -33,7 +39,12 @@ ds::string ImGuiFD::Native::getAbsolutePath(const char* path) {
 
 	ds::string out;
 	out.data.resize(MAX_PATH_LEN + 1);
-	GETABS(out.data.Data, path, MAX_PATH_LEN);
+#ifdef _WIN32
+	_fullpath(out.data.Data, path, MAX_PATH_LEN);
+#else
+	realpath(path, out.data.Data);
+#endif
+	
 	return out;
 }
 
