@@ -49,7 +49,7 @@ namespace ImGuiFD {
 				char c = path[ind];
 				switch (c) {
 				case '\\':
-					c = '/';
+					c = '/'; // no break here is intended, I think?
 				case '/':
 				{
 					if (!lastWasSlash) {
@@ -213,7 +213,7 @@ namespace ImGuiFD {
 
 		ds::string toString() {
 			size_t len = 0;
-			for (int i = 0; i < parts.size(); i++) {
+			for (size_t i = 0; i < parts.size(); i++) {
 				if (i > 0)
 					len++; // +1 len for '/'
 				len += parts[i].len();
@@ -224,7 +224,7 @@ namespace ImGuiFD {
 				out = "/";
 			}
 			else {
-				for (int i = 0; i < parts.size(); i++) {
+				for (size_t i = 0; i < parts.size(); i++) {
 					out += parts[i];
 					out += "/";
 				}
@@ -433,8 +433,9 @@ namespace ImGuiFD {
 
 		FileDialog(ImGuiID id, const char* str_id, const char* filter, const char* path, bool isFileDialog, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1) : 
 			str_id(str_id), id(id), path(utils::fixDirStr(Native::getAbsolutePath(path).c_str())), 
-			currentPath(this->path.c_str()), oldPath(this->path), entrys(filter),
+			currentPath(this->path.c_str()), oldPath(this->path),
 			undoStack(32), redoStack(32),
+			entrys(filter),
 			isFileDialog(isFileDialog), isModal((flags&ImGuiFDDialogFlags_Modal)!=0), hasFilter(filter != NULL), maxSelections(maxSelections)
 		{
 			updateEntrys();
@@ -595,7 +596,7 @@ namespace ImGuiFD {
 		}
 		ImGui::PopStyleVar();
 	}
-	bool ComboVertical(const char* str_id, size_t* v, const char** labels, int labelCnt, const ImVec2& size_arg = { 0,0 }) {
+	bool ComboVertical(const char* str_id, size_t* v, const char** labels, size_t labelCnt, const ImVec2& size_arg = { 0,0 }) {
 		ImGui::PushID(str_id);
 
 		ImVec2 avail = ImGui::GetContentRegionAvail();
@@ -856,7 +857,7 @@ namespace ImGuiFD {
 			ImGui::Dummy({ 0,0 });
 
 		ImGui::TableNextColumn();
-		if (entry.lastModified != (uint64_t)-1) {
+		if (entry.lastModified != (time_t)-1) {
 			char buf[128];
 			formatTime(buf, sizeof(buf), entry.lastModified);
 			ImGui::TextUnformatted(buf);
@@ -865,7 +866,7 @@ namespace ImGuiFD {
 			ImGui::Dummy({ 0,0 });
 
 		ImGui::TableNextColumn();
-		if (entry.creationDate != (uint64_t)-1) {
+		if (entry.creationDate != (time_t)-1) {
 			char buf[128];
 			formatTime(buf, sizeof(buf), entry.creationDate);
 			ImGui::TextUnformatted(buf);
@@ -940,7 +941,7 @@ namespace ImGuiFD {
 				ImGui::TextUnformatted(buf);
 			}
 
-			if (entry.creationDate != (uint64_t)-1) {
+			if (entry.creationDate != (time_t)-1) {
 				ImGui::TableNextRow();
 				ImGui::TableNextColumn();
 				ImGui::TextUnformatted("Created:");
@@ -951,7 +952,7 @@ namespace ImGuiFD {
 				ImGui::TextUnformatted(buf);
 			}
 
-			if (entry.lastModified != (uint64_t)-1) {
+			if (entry.lastModified != (time_t)-1) {
 				ImGui::TableNextRow();
 				ImGui::TableNextColumn();
 				ImGui::TextUnformatted("Last Modified:");
@@ -959,7 +960,7 @@ namespace ImGuiFD {
 				ImGui::TableNextColumn();
 				char buf[128];
 				formatTime(buf, sizeof(buf), entry.lastModified);
-				ImGui::Text(buf);
+				ImGui::TextUnformatted(buf);
 			}
 
 			ImGui::EndTable();
@@ -1025,7 +1026,7 @@ namespace ImGuiFD {
 			while (clipper.Step()) {
 				for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; row++) {
 					size_t itemsInThisLine = itemsPerLine;
-					if (row == numOfLines - 1)
+					if ((size_t)row == numOfLines - 1)
 						itemsInThisLine = numOfItems - itemsPerLine*(numOfLines-1);
 
 					for (size_t col = 0; col < itemsInThisLine; col++) {
