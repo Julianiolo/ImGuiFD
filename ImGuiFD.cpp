@@ -114,7 +114,7 @@ namespace ImGuiFD {
 		}
 		bool InputTextString(const char* label, const char* hint, ds::string* str, ImGuiInputTextFlags flags = 0, const ImVec2& size = { 0,0 }) {
 			return ImGui::InputTextEx(
-				label, hint, (char*)str->c_str(), str->data.capacity(), 
+				label, hint, (char*)str->c_str(), (int)str->data.capacity(), 
 				size, flags | ImGuiInputTextFlags_CallbackResize, TextCallBack, str
 			);
 		}
@@ -171,7 +171,7 @@ namespace ImGuiFD {
 				return (specs.SortDirection == ImGuiSortDirection_Ascending) ? -1 : +1;
 		}
 
-		return a.id-b.id;
+		return (int)a.id-(int)b.id;
 	}
 
 	class EditablePath {
@@ -282,16 +282,15 @@ namespace ImGuiFD {
 	};
 
 	class FileDataCache {
-	public:
-		~FileDataCache() {
-			clear();
-		}
-
 	private:
-		ds::set<ImGuiID> loaded;
+		ds::set<size_t> loaded;
 	public:
 		static RequestFileDataCallback requestFileDataCallB;
 		static FreeFileDataCallback freeFileDataCallB;
+
+		~FileDataCache() {
+			clear();
+		}
 
 		FileData* get(const DirEntry& entry) {
 			if(!requestFileDataCallB)
@@ -743,7 +742,7 @@ namespace ImGuiFD {
 
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, { 2,0 });
 			for (size_t i = 0; i < fd->currentPath.parts.size(); i++) {
-				ImGui::PushID(i);
+				ImGui::PushID((ImGuiID)i);
 				if (i > 0)
 					ImGui::SameLine();
 				if (ImGui::Button(fd->currentPath.parts[i].c_str())) {
@@ -907,7 +906,7 @@ namespace ImGuiFD {
 				}
 
 			ImGuiListClipper clipper;
-			clipper.Begin(fd->entrys.size());
+			clipper.Begin((int)fd->entrys.size());
 			while (clipper.Step()) {
 				for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; row++) {
 					ImGui::PushID(row);
@@ -983,7 +982,7 @@ namespace ImGuiFD {
 
 		float width = ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ScrollbarSize;
 
-		size_t itemsPerLineRaw = width / (itemWidthRaw+padding.x*2);
+		size_t itemsPerLineRaw = (size_t)(width / (itemWidthRaw+padding.x*2));
 		if (itemsPerLineRaw == 0) itemsPerLineRaw = 1;
 
 		size_t itemsPerLine = itemsPerLineRaw;
@@ -1021,7 +1020,7 @@ namespace ImGuiFD {
 			const ImVec2 totalCursorStart = ImGui::GetCursorPos();
 
 			ImGuiListClipper clipper;
-			clipper.Begin(numOfLines);
+			clipper.Begin((int)numOfLines);
 			clipper.ItemsHeight = itemHeight + style.ItemSpacing.y*2;
 			while (clipper.Step()) {
 				for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; row++) {
@@ -1032,7 +1031,7 @@ namespace ImGuiFD {
 					for (size_t col = 0; col < itemsInThisLine; col++) {
 						size_t ind = row * itemsPerLineRaw + col;
 
-						ImGui::PushID(ind);
+						ImGui::PushID((ImGuiID)ind);
 
 						auto& entry = fd->entrys.get(ind);
 						bool isSel = fd->selected.contains(ind);
@@ -1215,7 +1214,7 @@ namespace ImGuiFD {
 
 			if (ImGui::BeginCombo("##filter", fd->entrys.filter.filters[fd->entrys.filter.filterSel].c_str())) {
 				for (size_t i = 0; i < fd->entrys.filter.filters.size(); i++) {
-					ImGui::PushID(i);
+					ImGui::PushID((ImGuiID)i);
 
 					bool isSelected = i == fd->entrys.filter.filterSel;
 					if (ImGui::Selectable(fd->entrys.filter.filters[i].c_str(), isSelected))
