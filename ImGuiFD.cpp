@@ -1433,20 +1433,27 @@ size_t ImGuiFD::GetSelectionStringsAmt() {
 const char* ImGuiFD::GetSelectionNameString(size_t ind) {
 	IM_ASSERT(fd != 0);
 
-	IM_ASSERT(fd->selectionMade);
+	IM_ASSERT(fd->selectionMade); // maybe you didn't check if a selection was made?
 
-	IM_ASSERT(ind < fd->selected.size());
-
-	return fd->entrys.getRaw(fd->selected[ind]).name;
+	if (fd->selected.size() == 0) {
+		return ""; // TODO
+	}
+	else {
+		return fd->entrys.getRaw(fd->selected[ind]).name;
+	}
 }
 const char* ImGuiFD::GetSelectionPathString(size_t ind) {
 	IM_ASSERT(fd != 0);
 
 	IM_ASSERT(fd->selectionMade); // maybe you didn't check if a selection was made?
 
-	IM_ASSERT(ind < fd->selected.size());
-
-	return Native::makePathStrOSComply(fd->entrys.getRaw(fd->selected[ind]).path);
+	if (fd->selected.size() == 0) {
+		return Native::makePathStrOSComply(fd->inputText.c_str());
+	}
+	else {
+		return Native::makePathStrOSComply(fd->entrys.getRaw(fd->selected[ind]).path);
+	}
+	
 }
 
 void ImGuiFD::DrawDebugWin(const char* str_id) {
