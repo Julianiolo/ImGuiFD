@@ -122,7 +122,7 @@ ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path, boo
 				auto& entry = entrys.back();
 
 				ds::string name = ds::string(buf + off);
-				while (name.c_str() > 0 && name[-1] == '\\')
+				while (name.len() > 0 && name[-1] == '\\')
 					name = name.substr(0, -1);
 				
 				entry.name = ImStrdup(name.c_str());
