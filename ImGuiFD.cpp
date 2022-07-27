@@ -1355,10 +1355,12 @@ bool ImGuiFD::BeginDialog(const char* str_id) {
 	fd = &openDialogs.getByID(id);
 
 	ImGuiWindowFlags flags = 0;
-	if (fd->isModal) flags |= ImGuiWindowFlags_Modal;
+	//if (fd->isModal) flags |= ImGuiWindowFlags_Modal;
 
 	bool open = true;
 	bool ret;
+
+	ImGui::SetNextWindowSize(ImVec2(700, 400), ImGuiCond_Appearing);
 	if (ImGui::Begin(fd->str_id.c_str(), &open, flags)) {
 		fd->update();
 
