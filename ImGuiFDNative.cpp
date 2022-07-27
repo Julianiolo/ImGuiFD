@@ -5,18 +5,19 @@
 #include <dirent.h>
 
 #if defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+	#define WIN32_LEAN_AND_MEAN
+	#include <windows.h>
 
-#include <direct.h> // for _getcwd _fullpath
+	#include <direct.h> // for _getcwd _fullpath
 
-#define GETCWD _getcwd
+	#define GETCWD _getcwd
 #else
-#include <stdlib.h>
-#include <sys/stat.h>
+	#include <stdlib.h>
+	#include <limits.h>
+	#include <sys/stat.h>
 
-#define GETCWD getcwd
-#define GETABS realpath
+	#define GETCWD getcwd
+	#define GETABS realpath
 #endif
 
 #if defined(_WIN32) || defined(__unix__)
@@ -122,7 +123,7 @@ ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path, boo
 				auto& entry = entrys.back();
 
 				ds::string name = ds::string(buf + off);
-				while (name.c_str() > 0 && name[-1] == '\\')
+				while (name.len() > 0 && name[-1] == '\\')
 					name = name.substr(0, -1);
 				
 				entry.name = ImStrdup(name.c_str());
