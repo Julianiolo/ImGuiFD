@@ -283,7 +283,7 @@ namespace ImGuiFD {
 
 	class FileDataCache {
 	private:
-		ds::set<size_t> loaded;
+		ds::set<ImGuiID> loaded;
 	public:
 		static RequestFileDataCallback requestFileDataCallB;
 		static FreeFileDataCallback freeFileDataCallB;
