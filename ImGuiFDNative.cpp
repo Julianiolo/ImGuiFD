@@ -49,7 +49,7 @@ ds::string ImGuiFD::Native::getAbsolutePath(const char* path) {
 	return out;
 }
 
-void setupDirEnt(ImGuiFD::DirEntry* entry, size_t id, const dirent* de, const char* dir_) {
+void setupDirEnt(ImGuiFD::DirEntry* entry, ImGuiID id, const dirent* de, const char* dir_) {
 	entry->id = id;
 	entry->name = ImStrdup(de->d_name);
 	entry->dir = ImStrdup(dir_);
@@ -117,7 +117,7 @@ ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path, boo
 		if (byteLen > 0) {
 			*success = true;
 			size_t off = 0;
-			size_t id = 0;
+			ImGuiID id = 0;
 			while (buf[off] != 0) {
 				entrys.push_back(DirEntry());
 				auto& entry = entrys.back();

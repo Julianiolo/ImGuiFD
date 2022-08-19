@@ -17,7 +17,7 @@ namespace ImGuiFD {
         DirEntry& operator=(const DirEntry& src);
         ~DirEntry();
 
-        size_t id;
+        ImGuiID id;
         const char* name = 0;
         const char* dir = 0;
         const char* path = 0;
