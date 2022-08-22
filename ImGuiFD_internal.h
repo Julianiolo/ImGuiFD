@@ -51,16 +51,70 @@ namespace ds {
 		inline void         resize(size_t new_size)             { if (new_size > Capacity) reserve(_grow_capacity(new_size)); Size = new_size; }
 		inline void         resize(size_t new_size, const T& v) { if (new_size > Capacity) reserve(_grow_capacity(new_size)); if (new_size > Size) for (size_t n = Size; n < new_size; n++) IM_PLACEMENT_NEW(&Data[n]) T(v); Size = new_size; }
 		inline void         shrink(size_t new_size)             { IM_ASSERT(new_size <= Size); Size = new_size; } // Resize a vector to a smaller size, guaranteed not to cause a reallocation
-		inline void         reserve(size_t new_capacity)        { if (new_capacity <= Capacity) return; T* new_data = (T*)IM_ALLOC((size_t)new_capacity * sizeof(T)); if (Data) { memcpy(new_data, Data, (size_t)Size * sizeof(T)); IM_FREE(Data); } Data = new_data; Capacity = new_capacity; }
+		inline void         reserve(size_t new_capacity)        { 
+			if (new_capacity <= Capacity) 
+				return; 
+			T* new_data = (T*)IM_ALLOC((size_t)new_capacity * sizeof(T)); 
+			if (Data) { 
+				//memcpy(new_data, Data, (size_t)Size * sizeof(T));
+				for(size_t i = 0; i < Size; i++) {
+					IM_PLACEMENT_NEW(&new_data[i]) T(Data[i]);
+				}
+				IM_FREE(Data);
+			} 
+			Data = new_data; 
+			Capacity = new_capacity;
+		}
 
 		// NB: It is illegal to call push_back/push_front/insert with a reference pointing inside the Imvector data itself! e.g. v.push_back(v[10]) is forbidden.
-		inline void         push_back(const T& v)               { if (Size == Capacity) reserve(_grow_capacity(Size + 1)); IM_PLACEMENT_NEW(&Data[Size]) T(v); Size++; }
+		inline void         push_back(const T& v)               { 
+			if (Size == Capacity) 
+				reserve(_grow_capacity(Size + 1)); 
+			IM_PLACEMENT_NEW(&Data[Size]) T(v); 
+			Size++; 
+		}
 		inline void         pop_back()                          { IM_ASSERT(Size > 0); Size--; }
 		inline void         push_front(const T& v)              { if (Size == 0) push_back(v); else insert(Data, v); }
-		inline T*           erase(const T* it)                  { IM_ASSERT(it >= Data && it < Data + Size); it->~T(); const ptrdiff_t off = it - Data; memmove(Data + off, Data + off + 1, ((size_t)Size - (size_t)off - 1) * sizeof(T)); Size--; return Data + off; }
-		inline T*           erase(const T* it, const T* it_last){ IM_ASSERT(it >= Data && it < Data + Size && it_last > it && it_last <= Data + Size); it->~T(); const ptrdiff_t count = it_last - it; const ptrdiff_t off = it - Data; memmove(Data + off, Data + off + count, ((size_t)Size - (size_t)off - count) * sizeof(T)); Size -= (int)count; return Data + off; }
-		inline T*           erase_unsorted(const T* it)         { IM_ASSERT(it >= Data && it < Data + Size);  const ptrdiff_t off = it - Data; if (it < Data + Size - 1) memcpy(Data + off, Data + Size - 1, sizeof(T)); Size--; return Data + off; }
-		inline T*           insert(const T* it, const T& v)     { IM_ASSERT(it >= Data && it <= Data + Size); const ptrdiff_t off = it - Data; if (Size == Capacity) reserve(_grow_capacity(Size + 1)); if (off < (ptrdiff_t)Size) memmove(Data + off + 1, Data + off, ((size_t)Size - (size_t)off) * sizeof(T)); IM_PLACEMENT_NEW(&Data[off]) T(v); Size++; return Data + off; }
+		inline T*           erase(const T* it)                  { 
+			IM_ASSERT(it >= Data && it < Data + Size); 
+			it->~T(); 
+			const ptrdiff_t off = it - Data; 
+			//memmove(Data + off, Data + off + 1, (Size - (size_t)off - 1) * sizeof(T)); 
+			for(size_t i = off; i+1 < Size; i++) {
+				Data[i] = Data[i+1];
+			}
+			Size--; 
+			return Data + off;
+		}
+		inline T*           erase(const T* it, const T* it_last){ 
+			IM_ASSERT(it >= Data && it < Data + Size && it_last > it && it_last <= Data + Size); 
+			it->~T(); const ptrdiff_t count = it_last - it; 
+			const ptrdiff_t off = it - Data; 
+			//memmove(Data + off, Data + off + count, ((size_t)Size - (size_t)off - count) * sizeof(T)); 
+			for(size_t i = off; i+count < Size; i++) {
+				Data[i] = Data[i+count];
+			}
+			Size -= (int)count; 
+			return Data + off; 
+		}
+		inline T*           erase_unsorted(const T* it)         { 
+			abort();
+			IM_ASSERT(it >= Data && it < Data + Size);  const ptrdiff_t off = it - Data; if (it < Data + Size - 1) memcpy(Data + off, Data + Size - 1, sizeof(T)); Size--; return Data + off; }
+		inline T*           insert(const T* it, const T& v)     { 
+			IM_ASSERT(it >= Data && it <= Data + Size); 
+			const ptrdiff_t off = it - Data; 
+			if (Size == Capacity) 
+				reserve(_grow_capacity(Size + 1)); 
+			if (off < (ptrdiff_t)Size) {
+				//memmove(Data + off + 1, Data + off, ((size_t)Size - (size_t)off) * sizeof(T));
+				for(size_t i = off; i+1 < Size; i++) {
+					Data[i+1] = Data[i];
+				}
+			}
+				 
+			IM_PLACEMENT_NEW(&Data[off]) T(v); Size++; 
+			return Data + off; 
+		}
 		inline bool         contains(const T& v) const          { const T* data = Data;  const T* data_end = Data + Size; while (data < data_end) if (*data++ == v) return true; return false; }
 		inline T*           find(const T& v)                    { T* data = Data;  const T* data_end = Data + Size; while (data < data_end) if (*data == v) break; else ++data; return data; }
 		inline const T*     find(const T& v) const              { const T* data = Data;  const T* data_end = Data + Size; while (data < data_end) if (*data == v) break; else ++data; return data; }

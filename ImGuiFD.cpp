@@ -1172,6 +1172,12 @@ namespace ImGuiFD {
 
 			if (ImGui::Button("OK")) {
 				bool success = Native::makeFolder((fd->currentPath.toString() + "/" + fd->newFolderNameStr).c_str());
+
+				if(!success) {
+					// TODO:
+					abort(); // temporary
+				}
+
 				fd->newFolderNameStr = "";
 				fd->needsEntrysUpdate = true;
 				ImGui::CloseCurrentPopup();
