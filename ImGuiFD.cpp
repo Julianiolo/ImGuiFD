@@ -330,6 +330,8 @@ namespace ImGuiFD {
 		ds::string oldPath;
 		ds::string couldntLoadPath;
 
+		bool forceDisplayAllDirs = false;
+
 		bool isEditingPath = false;
 		ds::string editOnPathStr;
 		ds::OverrideStack<ds::string> undoStack;
@@ -728,9 +730,22 @@ namespace ImGuiFD {
 	}
 	void DrawDirBar() {
 		const float width = ImGui::GetContentRegionAvail().x;
+		if (width <= 0) {
+			ImGui::Dummy(ImVec2(0, 0)); // dummy to reset SameLine();
+			return;
+		}
+
 		const ImVec2 borderPad(2, 2);
 		const ImRect rec(ImGui::GetCursorScreenPos(), ImGui::GetCursorScreenPos() + ImVec2(width, ImGui::GetFrameHeight()));
 		const ImRect recOuter(rec.Min - borderPad, rec.Max + borderPad);
+		ImGuiStyle& style = ImGui::GetStyle();
+
+		ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 1);
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 0,0 });
+
+		ImGui::BeginChild("DirBar", ImVec2(width, ImGui::GetFrameHeight()));
+
+		ImVec2 cursorStartPos = ImGui::GetCursorPos();
 
 		if (!fd->isEditingPath) {
 			bool enterEditMode = false;
@@ -738,22 +753,65 @@ namespace ImGuiFD {
 			ImGui::BeginGroup();
 
 			// draw Background
-			ImGui::GetWindowDrawList()->AddRectFilled(recOuter.Min, recOuter.Max, ImColor(ImGui::GetStyleColorVec4(ImGuiCol_TableRowBgAlt)));
+			ImGui::GetWindowDrawList()->AddRectFilled(recOuter.Min, recOuter.Max, ImColor(ImGui::GetStyleColorVec4(ImGuiCol_TableHeaderBg)));
 
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, { 2,0 });
-			for (size_t i = 0; i < fd->currentPath.parts.size(); i++) {
+
+			// calculate total width of all dir buttons
+			float totalWidth = 0;
+			size_t lastToFit = -1; // including the ... button
+			
+			if (!fd->forceDisplayAllDirs) {
+				for (ptrdiff_t i = fd->currentPath.parts.size()-1; i >= 0; i--) {
+					const float label_size = ImGui::CalcTextSize(fd->currentPath.parts[i].c_str(), NULL, true).x;
+					float nextWidth = totalWidth + (label_size + style.FramePadding.x * 2.0f) + style.ItemSpacing.x;
+
+					if (totalWidth <= width && nextWidth > width) {
+						lastToFit = i;
+						totalWidth = nextWidth;
+						break;
+					}
+
+					totalWidth = nextWidth;
+				}
+			}
+
+			//ImGui::GetWindowDrawList()->AddRect(ImGui::GetCursorScreenPos(), ImGui::GetCursorScreenPos() + ImVec2(totalWidth, ImGui::GetTextLineHeight()), IM_COL32(255, 0, 0, 255));
+
+			bool doesntFit = lastToFit != (size_t)-1;
+
+			
+			size_t startOn = 0;
+			const float ellipseBtnWidth = ImGui::CalcTextSize("...").x + style.FramePadding.x * 2 + style.ItemSpacing.x;
+			if (doesntFit) {
+				startOn = lastToFit;
+
+				ImGui::SetCursorPosX(ImGui::GetCursorPosX() + width - totalWidth);
+			}
+
+			// draw buttons
+			for (size_t i = startOn; i < fd->currentPath.parts.size(); i++) {
 				ImGui::PushID((ImGuiID)i);
-				if (i > 0)
+				if (i > startOn)
 					ImGui::SameLine();
 				if (ImGui::Button(fd->currentPath.parts[i].c_str())) {
-					fd->dirShrinkTo(i);
+					fd->dirShrinkTo(i); // navigate to clicked dir
 				}
 				ImGui::PopID();
 			}
 			ImGui::PopStyleVar();
 
-			// draw border
-			ImGui::GetWindowDrawList()->AddRect(recOuter.Min, recOuter.Max, ImColor(ImGui::GetStyleColorVec4(ImGuiCol_Border)));
+			
+			if (doesntFit) {
+				// draw ellipse last so it overlapps
+				ImGui::SameLine();
+				ImGui::SetCursorPos(cursorStartPos);
+				ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetCursorScreenPos(), ImGui::GetCursorScreenPos() + ImVec2(ellipseBtnWidth, ImGui::GetFrameHeight()), ImColor(ImGui::GetStyleColorVec4(ImGuiCol_TableHeaderBg)));
+				if (ImGui::Button("...")) { // ellipse Button
+					fd->forceDisplayAllDirs = true;
+				}
+			}
+
 
 			ImGui::EndGroup();
 
@@ -775,6 +833,7 @@ namespace ImGuiFD {
 			ImGui::PushItemWidth(-FLT_MIN);
 
 			bool endEdit = false;
+			fd->forceDisplayAllDirs = false;
 
 			if (utils::InputTextString("##editPath", "Enter a Directory", &fd->editOnPathStr, ImGuiInputTextFlags_EnterReturnsTrue)) {
 				endEdit = true;
@@ -794,6 +853,16 @@ namespace ImGuiFD {
 
 			ImGui::PopItemWidth();
 		}
+
+		
+
+		ImGui::EndChild();
+
+		ImGui::PopStyleVar();
+		ImGui::PopStyleVar();
+
+		// draw border
+		ImGui::GetWindowDrawList()->AddRect(recOuter.Min, recOuter.Max, ImColor(ImGui::GetStyleColorVec4(ImGuiCol_Border)));
 	}
 	void DrawNavigation() {
 		ImGuiStyle& style = ImGui::GetStyle();
@@ -1517,3 +1586,15 @@ void ImGuiFD::DrawDebugWin(const char* str_id) {
 void ImGuiFD::Shutdown() {
 	openDialogs.clear(); // this is crucial to call all the deconstructors before the stuff they depend on gets shut down
 }
+
+
+
+/*
+
+// remove buttons from the front until the ellipse button also fits in
+//while (totalWidth + ellipseBtnWidth > width && lastToFit < fd->currentPath.parts.size()) {
+//	totalWidth -= ImGui::CalcTextSize(fd->currentPath.parts[lastToFit].c_str(), NULL, true).x + style.FramePadding.x * 2 + style.ItemSpacing.x;
+//	lastToFit++;
+//}
+
+*/
