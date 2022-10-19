@@ -1089,8 +1089,7 @@ namespace ImGuiFD {
 			const ImVec2 totalCursorStart = ImGui::GetCursorPos();
 
 			ImGuiListClipper clipper;
-			clipper.Begin((int)numOfLines);
-			clipper.ItemsHeight = itemHeight + style.ItemSpacing.y*2;
+			clipper.Begin((int)numOfLines, itemHeight + style.ItemSpacing.y*2);
 			while (clipper.Step()) {
 				for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; row++) {
 					size_t itemsInThisLine = itemsPerLine;
