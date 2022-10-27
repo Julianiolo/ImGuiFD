@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <time.h> // used for localtime() and strftime()
 
+#define __STDC_FORMAT_MACROS 1
 #include <inttypes.h> // used for u64 in format string
 
 namespace ImGuiFD {
