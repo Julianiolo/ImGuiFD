@@ -2,9 +2,11 @@
 #include "ImGuiFD_internal.h"
 
 #include <stdint.h>
-#include <dirent.h>
+
 
 #if defined(_WIN32)
+	#include "dependencies/dirent/include/dirent.h"
+
 	#define WIN32_LEAN_AND_MEAN
 	#include <windows.h>
 
@@ -12,6 +14,7 @@
 
 	#define GETCWD _getcwd
 #else
+	#include <dirent.h>
 	#include <stdlib.h>
 	#include <limits.h>
 	#include <sys/stat.h>
@@ -187,7 +190,7 @@ bool ImGuiFD::Native::isValidDir(const char* dir) {
 
 bool ImGuiFD::Native::makeFolder(const char* path) {
 	int status;
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__MINGW32__)
 	status = _mkdir(path+1); // +1 to remove / from beginning of path
 #else
 	status = mkdir(path, S_IRWXU);
