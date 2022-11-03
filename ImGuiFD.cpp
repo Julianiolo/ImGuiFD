@@ -958,7 +958,7 @@ namespace ImGuiFD {
 			// sorting:
 			ImGuiTableFlags_Sortable | ImGuiTableFlags_SortMulti;
 
-		const ImVec2 tableScreenPos = ImGui::GetCursorScreenPos();
+		//const ImVec2 tableScreenPos = ImGui::GetCursorScreenPos();
 
 		if (ImGui::BeginTable("Dir", 5, flags, {0,height})) {
 			ImGui::TableSetupScrollFreeze(0, 1); // make Header always visible
