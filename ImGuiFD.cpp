@@ -121,7 +121,8 @@ namespace ImGuiFD {
 		}
 	}
 
-	ImGuiTableSortSpecs* sortSpecs = 0;
+	ImGuiTableSortSpecs* globalSortSpecs = 0;
+	ds::vector<DirEntry>* globalSortData = 0;
 
 	enum {
 		DEIG_NAME = 0,
@@ -130,40 +131,67 @@ namespace ImGuiFD {
 		DEIG_CREATION_DATE,
 	};
 
+	int customStrCmp(const char* strA, const char* strB) {
+		while (true) {
+			char a = *strA++;
+			char b = *strB++;
+
+			if (a == 0 || b == 0) {
+				if (a == 0 && b == 0)
+					return 0;
+				if (a == 0)
+					return -1;
+				else
+					return 1;
+			}
+
+			if (a >= 'A' && a <= 'Z')
+				a += 'a' - 'A';
+
+			if (b >= 'A' && b <= 'Z')
+				b += 'a' - 'A';
+
+			if (a == b)
+				continue;
+
+			return a - b;
+		}
+	}
+
 	int compareSortSpecs(const void* lhs, const void* rhs){
-		auto& a = **(DirEntry**)lhs;
-		auto& b = **(DirEntry**)rhs;
+		auto& a = (*globalSortData)[*(size_t*)lhs];
+		auto& b = (*globalSortData)[*(size_t*)rhs];
 
 		if (settings.showDirFirst) {
 			if (a.isFolder && !b.isFolder) return -1;
 			if (!a.isFolder && b.isFolder) return 1;
 		}
 
-		for (int i = 0; i < sortSpecs->SpecsCount; i++) {
-			auto& specs = sortSpecs->Specs[i];
+		for (int i = 0; i < globalSortSpecs->SpecsCount; i++) {
+			auto& specs = globalSortSpecs->Specs[i];
 			int delta = 0;
 			switch (specs.ColumnUserID) {
-			case DEIG_NAME:
-				delta = strcoll(a.name, b.name);
-				break;
-			case DEIG_SIZE: {
-				int64_t diff = ((int64_t)a.size - (int64_t)b.size); // int64 to prevent overflows
-				if (diff < 0) delta = -1;
-				if (diff > 0) delta = 1;
-				break;
-			}
-			case DEIG_CREATION_DATE: {
-				int64_t diff = ((int64_t)a.creationDate - (int64_t)b.creationDate); // int64 to prevent overflows
-				if (diff < 0) delta = -1;
-				if (diff > 0) delta = 1;
-				break;
-			}
-			case DEIG_LASTMOD_DATE: {
-				int64_t diff = ((int64_t)a.lastModified - (int64_t)b.lastModified); // int64 to prevent overflows
-				if (diff < 0) delta = -1;
-				if (diff > 0) delta = 1;
-				break;
-			}
+				case DEIG_NAME:
+					delta = customStrCmp(a.name, b.name);
+					break;
+				case DEIG_SIZE: {
+					int64_t diff = ((int64_t)a.size - (int64_t)b.size); // int64 to prevent overflows
+					if (diff < 0) delta = -1;
+					if (diff > 0) delta = 1;
+					break;
+				}
+				case DEIG_CREATION_DATE: {
+					int64_t diff = ((int64_t)a.creationDate - (int64_t)b.creationDate); // int64 to prevent overflows
+					if (diff < 0) delta = -1;
+					if (diff > 0) delta = 1;
+					break;
+				}
+				case DEIG_LASTMOD_DATE: {
+					int64_t diff = ((int64_t)a.lastModified - (int64_t)b.lastModified); // int64 to prevent overflows
+					if (diff < 0) delta = -1;
+					if (diff > 0) delta = 1;
+					break;
+				}
 			}
 
 			if (delta > 0)
@@ -340,7 +368,7 @@ namespace ImGuiFD {
 		
 		class EntryManager {
 			ds::vector<DirEntry> data;
-			ds::vector<DirEntry*> dataModed;
+			ds::vector<size_t> dataModed;
 
 			bool loadedSucessfully = false;
 		public:
@@ -349,10 +377,6 @@ namespace ImGuiFD {
 
 			EntryManager(const char* filter) : filter(filter) {
 				
-			}
-
-			EntryManager(const EntryManager& src) : data(src.data), filter(src.filter) {
-				updateFilter();
 			}
 
 			// return true if it was able to load the directory
@@ -373,7 +397,7 @@ namespace ImGuiFD {
 			}
 
 			DirEntry& get(size_t i) {
-				return *dataModed[i];
+				return data[dataModed[i]];
 			}
 
 			size_t size() {
@@ -381,24 +405,29 @@ namespace ImGuiFD {
 			}
 
 			size_t getActualIndex(size_t i) {
-				return dataModed[i] - &data[0];
+				return dataModed[i];
 			}
 
 			void updateFilter() {
 				dataModed.clear();
 				for (size_t i = 0; i < data.size(); i++) {
 					if (filter.passes(data[i].name)) {
-						dataModed.push_back(&data[i]);
+						dataModed.push_back(i);
 					}
 				}
 				sorted = false;
 			}
 
 			void sort(ImGuiTableSortSpecs* sorts_specs) {
-				sortSpecs = sorts_specs;
+				globalSortSpecs = sorts_specs;
+				globalSortData = &data;
+
 				if(dataModed.size() > 1)
-					qsort(dataModed.begin(), (size_t)dataModed.size(), sizeof(dataModed[0]), compareSortSpecs);
-				sortSpecs = 0;
+					qsort(dataModed.begin(), dataModed.size(), sizeof(dataModed[0]), compareSortSpecs);
+				
+				globalSortSpecs = 0;
+				globalSortData = 0;
+
 				sorted = true;
 			}
 
