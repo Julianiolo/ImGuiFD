@@ -1404,9 +1404,24 @@ void ImGuiFD::SetFileDataCallback(RequestFileDataCallback loadCallB, FreeFileDat
 	FileDataCache::freeFileDataCallB = unloadCallB;
 }
 
-void ImGuiFD::OpenFileDialog(const char* str_id, const char* filter, const char* path, ImGuiFDDialogFlags flags, size_t maxSelections) {
-	ImGuiID id = ImHashStr(str_id);
+ImGuiFD::FDInstance::FDInstance(const char* str_id) : str_id(str_id), id(ImHashStr(str_id)){
 
+}
+void ImGuiFD::FDInstance::OpenFileDialog(const char* path, const char* filter, ImGuiFDDialogFlags flags, size_t maxSelections) {
+	ImGuiFD::OpenFileDialog(str_id.c_str(), path, filter, flags, maxSelections);
+}
+void ImGuiFD::FDInstance::OpenDirDialog(const char* path, ImGuiFDDialogFlags flags, size_t maxSelections) {
+	ImGuiFD::OpenDirDialog(str_id.c_str(), path, flags, maxSelections);
+}
+bool ImGuiFD::FDInstance::Begin() {
+	return ImGuiFD::BeginDialog(id);
+}
+void ImGuiFD::FDInstance::End() {
+	ImGuiFD::EndDialog();
+}
+
+void ImGuiFD::OpenFileDialog(const char* str_id, const char* path, const char* filter, ImGuiFDDialogFlags flags, size_t maxSelections) {
+	ImGuiID id = ImHashStr(str_id);
 #if 0
 	IM_ASSERT(!openDialogs.contains(id));
 #else
@@ -1420,7 +1435,8 @@ void ImGuiFD::OpenFileDialog(const char* str_id, const char* filter, const char*
 	bool isFileDialog = true;
 	openDialogs.insert(id, FileDialog(id, str_id, filter, path, isFileDialog, flags, maxSelections));
 }
-void ImGuiFD::OpenDirDialog(const char* str_id, const char* path, ImGuiFDDialogFlags flags) {
+
+void ImGuiFD::OpenDirDialog(const char* str_id, const char* path, ImGuiFDDialogFlags flags, size_t maxSelections) {
 	ImGuiID id = ImHashStr(str_id);
 
 #if 0
@@ -1434,7 +1450,7 @@ void ImGuiFD::OpenDirDialog(const char* str_id, const char* path, ImGuiFDDialogF
 	}
 #endif
 	bool isFileDialog = false;
-	openDialogs.insert(id, FileDialog(id, str_id, NULL, path, isFileDialog, flags));
+	openDialogs.insert(id, FileDialog(id, str_id, NULL, path, isFileDialog, flags, maxSelections));
 }
 
 void ImGuiFD::CloseDialog(const char* str_id) {
@@ -1448,10 +1464,12 @@ void ImGuiFD::CloseCurrentDialog() {
 }
 
 bool ImGuiFD::BeginDialog(const char* str_id) {
+	ImGuiID id = ImHashStr(str_id);
+	return BeginDialog(id);
+}
+bool ImGuiFD::BeginDialog(ImGuiID id) {
 	// Begin/End mismatch
 	IM_ASSERT(fd == 0);
-
-	ImGuiID id = ImHashStr(str_id);
 
 	if (!openDialogs.contains(id))
 		return false;

@@ -599,6 +599,19 @@ namespace ds {
 }
 
 namespace ImGuiFD {
+	struct FDInstance {
+		const ds::string str_id;
+        const ImGuiID id;
+
+        FDInstance(const char* str_id);
+
+        void OpenFileDialog(const char* path, const char* filter = NULL, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
+        void OpenDirDialog(const char* path, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
+
+        bool Begin();
+        void End();
+    };
+
 	namespace Native {
 		constexpr size_t MAX_PATH_LEN = 1024;
 

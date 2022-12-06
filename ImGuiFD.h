@@ -75,12 +75,17 @@ namespace ImGuiFD {
 
     void SetFileDataCallback(RequestFileDataCallback loadCallB, FreeFileDataCallback unloadCallB);
 
-    void OpenFileDialog(const char* str_id, const char* filter, const char* path, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
-    void OpenDirDialog(const char* str_id, const char* path, ImGuiFDDialogFlags flags = 0);
+    
+
+    void GetFileDialog(const char* str_id, const char* filter, const char* path, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
+
+    void OpenFileDialog(const char* str_id, const char* path, const char* filter = NULL, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
+    void OpenDirDialog(const char* str_id, const char* path, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
     void CloseDialog(const char* str_id);
     void CloseCurrentDialog();
 
     bool BeginDialog(const char* str_id);
+    bool BeginDialog(ImGuiID id);
     void EndDialog();
 
     bool ActionDone(); // was Open/Cancel (=> anything) pressed?
