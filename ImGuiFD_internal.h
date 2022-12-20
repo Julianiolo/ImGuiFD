@@ -600,8 +600,8 @@ namespace ds {
 
 namespace ImGuiFD {
 	struct FDInstance {
-		const ds::string str_id;
-        const ImGuiID id;
+		ds::string str_id;
+        ImGuiID id;
 
         FDInstance(const char* str_id);
 
