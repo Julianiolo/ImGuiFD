@@ -1,3 +1,6 @@
+#ifndef __IMGUIFD_INTERNAL_H__
+#define __IMGUIFD_INTERNAL_H__
+
 #include "ImGuiFD.h"
 #define IMGUI_DEFINE_MATH_OPERATORS 1
 #include "imgui_internal.h"
@@ -605,8 +608,7 @@ namespace ImGuiFD {
 
         FDInstance(const char* str_id);
 
-        void OpenFileDialog(const char* path, const char* filter = NULL, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
-        void OpenDirDialog(const char* path, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
+        void OpenDialog(ImGuiFDMode mode, const char* path, const char* filter = NULL, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
 
         bool Begin();
         void End();
@@ -626,3 +628,5 @@ namespace ImGuiFD {
 		const char* makePathStrOSComply(const char* path);
 	}
 }
+
+#endif

@@ -446,7 +446,7 @@ namespace ImGuiFD {
 		size_t lastSelected = -1;
 		ds::set<size_t> selected;
 
-		bool isFileDialog = true;
+		ImGuiFDMode mode;
 		bool isModal = false;
 		bool hasFilter;
 		
@@ -462,12 +462,12 @@ namespace ImGuiFD {
 		bool toDelete = false;
 		bool showLoadErrorMsg = false;
 
-		FileDialog(ImGuiID id, const char* str_id, const char* filter, const char* path, bool isFileDialog, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1) : 
+		FileDialog(ImGuiID id, const char* str_id, const char* filter, const char* path, ImGuiFDMode mode, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1) : 
 			str_id(str_id), id(id), path(utils::fixDirStr(Native::getAbsolutePath(path).c_str())), 
 			currentPath(this->path.c_str()), oldPath(this->path),
 			undoStack(32), redoStack(32),
 			entrys(filter),
-			isFileDialog(isFileDialog), isModal((flags&ImGuiFDDialogFlags_Modal)!=0), hasFilter(filter != NULL), maxSelections(maxSelections)
+			mode(mode), isModal((flags&ImGuiFDDialogFlags_Modal)!=0), hasFilter(filter != NULL), maxSelections(maxSelections)
 		{
 			updateEntrys();
 			setInputTextToSelected();
@@ -505,11 +505,11 @@ namespace ImGuiFD {
 
 		void setInputTextToSelected() {
 			if (selected.size() == 0) {
-				if (isFileDialog) {
-					inputText = "";
+				if (mode == ImGuiFDMode_OpenDir) {
+					inputText = currentPath.toString(); // if selecting a directory, always have the folder we are in as default if nothing is selected
 				}
 				else {
-					inputText = currentPath.toString(); // if selecting a directory, always have the folder we are in as default if nothing is selected
+					inputText = "";
 				}
 			}
 			else {
@@ -671,7 +671,7 @@ namespace ImGuiFD {
 	void ClickedOnEntrySelect(size_t ind, bool isSel, bool isFolder) {
 		if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
 			return;
-		if (!fd->isFileDialog && !isFolder)
+		if (fd->mode == ImGuiFDMode_OpenDir && !isFolder)
 			return;
 
 		if (ImGui::GetIO().KeyShift == ImGui::GetIO().KeyCtrl) { // both on or both off => standard select
@@ -726,7 +726,7 @@ namespace ImGuiFD {
 				fd->dirMoveDownInto(entry.name);
 			}
 			else {
-				if (fd->isFileDialog) {
+				if (fd->mode == ImGuiFDMode_LoadFile) {
 					fd->actionDone = true;
 					fd->selectionMade = true;
 				}
@@ -1291,17 +1291,24 @@ namespace ImGuiFD {
 
 
 	bool canOpenNow() {
-		if (fd->isFileDialog) {
-			return fd->selected.size() > 0;
-		}
-		else {
-			return true;
+		switch(fd->mode) {
+			case ImGuiFDMode_LoadFile:
+				return fd->selected.size() > 0;
+
+			case ImGuiFDMode_SaveFile:
+				return fd->inputText.len() > 0;
+
+			case ImGuiFDMode_OpenDir:
+				return true;
+
+			default:
+				abort();
 		}
 	}
 	void DrawTextField() {
 		ImGuiStyle& style = ImGui::GetStyle();
 
-		const char* openBtnStr = "Open";
+		const char* openBtnStr = fd->mode == ImGuiFDMode_SaveFile ? "Save" : "Open";
 		const char* cancelBtnStr = "Cancel";
 		const float minBtnWidth = ImMin(100.0f, ImGui::GetContentRegionAvail().x/4);
 		const float btnWidht = ImMax(ImMax(ImGui::CalcTextSize(openBtnStr).x, ImGui::CalcTextSize(cancelBtnStr).x), minBtnWidth) + style.FramePadding.x*2;
@@ -1407,11 +1414,8 @@ void ImGuiFD::SetFileDataCallback(RequestFileDataCallback loadCallB, FreeFileDat
 ImGuiFD::FDInstance::FDInstance(const char* str_id) : str_id(str_id), id(ImHashStr(str_id)){
 
 }
-void ImGuiFD::FDInstance::OpenFileDialog(const char* path, const char* filter, ImGuiFDDialogFlags flags, size_t maxSelections) {
-	ImGuiFD::OpenFileDialog(str_id.c_str(), path, filter, flags, maxSelections);
-}
-void ImGuiFD::FDInstance::OpenDirDialog(const char* path, ImGuiFDDialogFlags flags, size_t maxSelections) {
-	ImGuiFD::OpenDirDialog(str_id.c_str(), path, flags, maxSelections);
+void ImGuiFD::FDInstance::OpenDialog(ImGuiFDMode mode, const char* path, const char* filter, ImGuiFDDialogFlags flags, size_t maxSelections) {
+	ImGuiFD::OpenDialog(str_id.c_str(), mode, path, filter, flags, maxSelections);
 }
 bool ImGuiFD::FDInstance::Begin() {
 	return ImGuiFD::BeginDialog(id);
@@ -1425,12 +1429,13 @@ void ImGuiFD::FDInstance::DrawDialog(void (*callB)(void* userData), void* userDa
 			if(ImGuiFD::SelectionMade()) {
 				callB(userData);
 			}
+			ImGuiFD::CloseCurrentDialog();
 		}
 		End();
 	}
 }
 
-void ImGuiFD::OpenFileDialog(const char* str_id, const char* path, const char* filter, ImGuiFDDialogFlags flags, size_t maxSelections) {
+void ImGuiFD::OpenDialog(const char* str_id, ImGuiFDMode mode, const char* path, const char* filter, ImGuiFDDialogFlags flags, size_t maxSelections) {
 	ImGuiID id = ImHashStr(str_id);
 #if 0
 	IM_ASSERT(!openDialogs.contains(id));
@@ -1442,25 +1447,7 @@ void ImGuiFD::OpenFileDialog(const char* str_id, const char* path, const char* f
 		return;
 	}
 #endif
-	bool isFileDialog = true;
-	openDialogs.insert(id, FileDialog(id, str_id, filter, path, isFileDialog, flags, maxSelections));
-}
-
-void ImGuiFD::OpenDirDialog(const char* str_id, const char* path, ImGuiFDDialogFlags flags, size_t maxSelections) {
-	ImGuiID id = ImHashStr(str_id);
-
-#if 0
-	IM_ASSERT(!openDialogs.contains(id));
-#else
-	if (openDialogs.contains(id)) {
-		if (openDialogs.getByID(id).toDelete) {
-			openDialogs.erase(id);
-		}
-		return;
-	}
-#endif
-	bool isFileDialog = false;
-	openDialogs.insert(id, FileDialog(id, str_id, NULL, path, isFileDialog, flags, maxSelections));
+	openDialogs.insert(id, FileDialog(id, str_id, filter, path, mode, flags, maxSelections));
 }
 
 void ImGuiFD::CloseDialog(const char* str_id) {

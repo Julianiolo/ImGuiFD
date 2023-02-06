@@ -9,6 +9,18 @@
 #include <stdint.h>
 #include <ctime>
 
+enum {
+    ImGuiFDMode_LoadFile = 0,
+    ImGuiFDMode_SaveFile,
+    ImGuiFDMode_OpenDir,
+};
+typedef uint8_t ImGuiFDMode;
+
+enum {
+    ImGuiFDDialogFlags_Modal = 1<<0
+};
+typedef int ImGuiFDDialogFlags;
+
 namespace ImGuiFD {
     struct DirEntry {
     public:
@@ -45,11 +57,6 @@ namespace ImGuiFD {
 
     static GlobalSettings settings;
 
-    enum {
-        ImGuiFDDialogFlags_Modal = 1<<0
-    };
-    typedef int ImGuiFDDialogFlags;
-
     struct FileData {
         struct Image {
             ImTextureID texID;
@@ -79,8 +86,7 @@ namespace ImGuiFD {
 
     void GetFileDialog(const char* str_id, const char* filter, const char* path, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
 
-    void OpenFileDialog(const char* str_id, const char* path, const char* filter = NULL, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
-    void OpenDirDialog(const char* str_id, const char* path, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
+    void OpenDialog(const char* str_id, ImGuiFDMode mode, const char* path, const char* filter = NULL, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
     void CloseDialog(const char* str_id);
     void CloseCurrentDialog();
 
