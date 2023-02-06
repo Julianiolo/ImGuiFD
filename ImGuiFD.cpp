@@ -1419,6 +1419,16 @@ bool ImGuiFD::FDInstance::Begin() {
 void ImGuiFD::FDInstance::End() {
 	ImGuiFD::EndDialog();
 }
+void ImGuiFD::FDInstance::DrawDialog(void (*callB)(void* userData), void* userData = nullptr) {
+	if(Begin()) {
+		if(ImGuiFD::ActionDone()) {
+			if(ImGuiFD::SelectionMade()) {
+				callB(userData);
+			}
+		}
+		End();
+	}
+}
 
 void ImGuiFD::OpenFileDialog(const char* str_id, const char* path, const char* filter, ImGuiFDDialogFlags flags, size_t maxSelections) {
 	ImGuiID id = ImHashStr(str_id);
