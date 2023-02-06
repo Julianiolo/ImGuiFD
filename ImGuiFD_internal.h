@@ -610,6 +610,7 @@ namespace ImGuiFD {
 
         bool Begin();
         void End();
+		void DrawDialog(void (*callB)(void* userData), void* userData = nullptr);
     };
 
 	namespace Native {
