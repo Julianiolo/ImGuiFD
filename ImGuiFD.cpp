@@ -1419,7 +1419,7 @@ bool ImGuiFD::FDInstance::Begin() {
 void ImGuiFD::FDInstance::End() {
 	ImGuiFD::EndDialog();
 }
-void ImGuiFD::FDInstance::DrawDialog(void (*callB)(void* userData), void* userData = nullptr) {
+void ImGuiFD::FDInstance::DrawDialog(void (*callB)(void* userData), void* userData) {
 	if(Begin()) {
 		if(ImGuiFD::ActionDone()) {
 			if(ImGuiFD::SelectionMade()) {
