@@ -20,7 +20,18 @@ namespace ds {
 		// Constructors, destructor
 		inline vector()                                         { Size = Capacity = 0; Data = NULL; }
 		inline vector(const vector<T>& src)                     { Size = Capacity = 0; Data = NULL; operator=(src); }
-		inline vector(size_t size_, const T& def)               { Size = Capacity = 0; Data = NULL; resize(size_); for (size_t i = 0; i < size_; i++) this->operator[](i) = def; }
+		inline vector(size_t size_) { 
+			Size = Capacity = 0; 
+			Data = NULL; 
+			resize(size_);
+		}
+		inline vector(size_t size_, const T& def) { 
+			Size = Capacity = 0; 
+			Data = NULL; 
+			resize(size_); 
+			for (size_t i = 0; i < size_; i++) 
+				this->operator[](i) = def; 
+		}
 		inline vector<T>& operator=(const vector<T>& src)       { 
 			clear(); 
 			resize(src.Size);
@@ -51,9 +62,22 @@ namespace ds {
 		inline void         swap(vector<T>& rhs)                { size_t rhs_size = rhs.Size; rhs.Size = Size; Size = rhs_size; size_t rhs_cap = rhs.Capacity; rhs.Capacity = Capacity; Capacity = rhs_cap; T* rhs_data = rhs.Data; rhs.Data = Data; Data = rhs_data; }
 
 		inline size_t       _grow_capacity(size_t sz) const     { size_t new_capacity = Capacity ? (Capacity + Capacity / 2) : 8; return new_capacity > sz ? new_capacity : sz; }
-		inline void         resize(size_t new_size)             { if (new_size > Capacity) reserve(_grow_capacity(new_size)); Size = new_size; }
+		inline void         resize(size_t new_size)             { 
+			if (new_size > Capacity) 
+				reserve(_grow_capacity(new_size)); 
+			for (size_t i = Size; i < new_size; i++) {
+				IM_PLACEMENT_NEW(&Data[i]) T();
+			}
+			Size = new_size; 
+		}
 		inline void         resize(size_t new_size, const T& v) { if (new_size > Capacity) reserve(_grow_capacity(new_size)); if (new_size > Size) for (size_t n = Size; n < new_size; n++) IM_PLACEMENT_NEW(&Data[n]) T(v); Size = new_size; }
-		inline void         shrink(size_t new_size)             { IM_ASSERT(new_size <= Size); Size = new_size; } // Resize a vector to a smaller size, guaranteed not to cause a reallocation
+		inline void         shrink(size_t new_size)             {  // Resize a vector to a smaller size, guaranteed not to cause a reallocation
+			IM_ASSERT(new_size <= Size); 
+			for (size_t i = new_size; i < Size; i++) {
+				Data[i].~T();
+			}
+			Size = new_size; 
+		}
 		inline void         reserve(size_t new_capacity)        { 
 			if (new_capacity <= Capacity) 
 				return; 
@@ -61,7 +85,8 @@ namespace ds {
 			if (Data) { 
 				//memcpy(new_data, Data, (size_t)Size * sizeof(T));
 				for(size_t i = 0; i < Size; i++) {
-					IM_PLACEMENT_NEW(&new_data[i]) T(Data[i]);
+					IM_PLACEMENT_NEW(&new_data[i]) T((T&&)Data[i]);
+					Data[i].~T();
 				}
 				IM_FREE(Data);
 			} 
@@ -100,9 +125,6 @@ namespace ds {
 			Size -= (int)count; 
 			return Data + off; 
 		}
-		inline T*           erase_unsorted(const T* it)         { 
-			abort();
-			IM_ASSERT(it >= Data && it < Data + Size);  const ptrdiff_t off = it - Data; if (it < Data + Size - 1) memcpy(Data + off, Data + Size - 1, sizeof(T)); Size--; return Data + off; }
 		inline T*           insert(const T* it, const T& v)     { 
 			IM_ASSERT(it >= Data && it <= Data + Size); 
 			const ptrdiff_t off = it - Data; 
@@ -122,7 +144,6 @@ namespace ds {
 		inline T*           find(const T& v)                    { T* data = Data;  const T* data_end = Data + Size; while (data < data_end) if (*data == v) break; else ++data; return data; }
 		inline const T*     find(const T& v) const              { const T* data = Data;  const T* data_end = Data + Size; while (data < data_end) if (*data == v) break; else ++data; return data; }
 		inline bool         find_erase(const T& v)              { const T* it = find(v); if (it < Data + Size) { erase(it); return true; } return false; }
-		inline bool         find_erase_unsorted(const T& v)     { const T* it = find(v); if (it < Data + Size) { erase_unsorted(it); return true; } return false; }
 		inline size_t       index_from_ptr(const T* it) const   { IM_ASSERT(it >= Data && it < Data + Size); const ptrdiff_t off = it - Data; return (size_t)off; }
 	};
 
@@ -132,19 +153,23 @@ namespace ds {
 		T0 first;
 		T1 second;
 		inline pair(const T0& t0_, const T1& t1_) : first(t0_), second(t1_){}
+
+		inline bool operator==(const pair<T0, T1>& other) {
+			return first == other.first && second == other.second;
+		}
 	};
 
 	class string {
 	public:
 		vector<char> data;
-		inline string() { data.resize(1); data[0] = 0; }
-		inline string(const char* s, const char* s_end = 0) {
-			size_t len = s_end ? (s_end-s) : strlen(s);
-			data.resize(len + 1);
-			for (size_t i = 0; i < len; i++) {
+		inline string() : data(1,0) {
+			
+		}
+		inline string(const char* s, const char* s_end = 0) : data((s_end ? (s_end-s) : strlen(s))+1) {
+			for (size_t i = 0; i < data.size(); i++) {
 				data[i] = s[i];
 			}
-			data[len] = 0;
+			data.back() = 0;
 		}
 
 		inline const char* c_str() const {
@@ -170,7 +195,7 @@ namespace ds {
 			size_t startSize = len();
 			data.resize(len() + s.len() + 1);
 
-			for (size_t i = 0; i < (size_t)s.data.size(); i++) {
+			for (size_t i = 0; i < s.data.size(); i++) {
 				data[startSize+i] = s.data[i];
 			}
 			return *this;
@@ -180,12 +205,12 @@ namespace ds {
 			string out;
 			out.data.resize(len() + s.len() + 1);
 
-			for (size_t i = 0; i < (size_t)data.size(); i++) {
+			for (size_t i = 0; i < data.size(); i++) {
 				out.data[i] = data[i];
 			}
 
 			size_t startSize = len();
-			for (size_t i = 0; i < (size_t)s.data.size(); i++) {
+			for (size_t i = 0; i < s.data.size(); i++) {
 				out.data[startSize+i] = s.data[i];
 			}
 			return out;
