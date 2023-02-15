@@ -580,6 +580,18 @@ namespace ImGuiFD {
 				needsEntrysUpdate = true;
 			}
 		}
+
+		bool isFileMode() const {
+			return mode == ImGuiFDMode_LoadFile || mode == ImGuiFDMode_SaveFile;
+		}
+		bool isDirMode() const {
+			return mode == ImGuiFDMode_OpenDir;
+		}
+
+		DirEntry& getSelectedInd(size_t ind) {
+			IM_ASSERT(ind <= selected.size());
+			return entrys.get(*(selected.begin() + ind));
+		}
 	};
 
 	FileDialog* fd = 0;
@@ -1023,6 +1035,7 @@ namespace ImGuiFD {
 			ImColor(ImGui::GetStyleColorVec4(ImGuiCol_Border))
 		);*/
 	}
+
 	void DrawDirFiles_IconsItemDesc(const DirEntry& entry) {
 		ImGui::PushStyleColor(ImGuiCol_Text, settings.descTextCol);
 
@@ -1230,6 +1243,7 @@ namespace ImGuiFD {
 		}
 		ImGui::EndChild();
 	}
+
 	void DrawDirFiles() {
 		float winHeight = ImGui::GetWindowContentRegionMax().y - ImGui::GetWindowContentRegionMin().y;
 		float height = winHeight - (ImGui::GetCursorPosY()-ImGui::GetCursorStartPos().y) - ImGui::GetFrameHeightWithSpacing() * (fd->hasFilter ? 2 : 1);
@@ -1245,7 +1259,10 @@ namespace ImGuiFD {
 		if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
 			ImGui::OpenPopup("ContextMenu");
 		}
+	}
 
+
+	void DrawContextMenu() {
 		bool openNewFolderPopup = false;
 		if (ImGui::BeginPopup("ContextMenu")) {
 			if (ImGui::MenuItem("Clear Selection")) {
@@ -1289,20 +1306,20 @@ namespace ImGuiFD {
 		}
 	}
 
-
 	bool canOpenNow() {
-		switch(fd->mode) {
-			case ImGuiFDMode_LoadFile:
-				return fd->selected.size() > 0;
-
-			case ImGuiFDMode_SaveFile:
-				return fd->inputText.len() > 0;
-
-			case ImGuiFDMode_OpenDir:
-				return true;
-
-			default:
-				abort();
+		if (fd->isFileMode()) {
+			for (auto& id : fd->selected) {
+				auto& entry = fd->entrys.get(id);
+				if (entry.isFolder)
+					return false;
+			}
+			return fd->inputText.len() > 0;
+		}
+		else if (fd->isDirMode()) {
+			return true;
+		}
+		else {
+			abort();
 		}
 	}
 	void DrawTextField() {
@@ -1345,16 +1362,28 @@ namespace ImGuiFD {
 
 		ImGui::SameLine();
 
-		const bool canOpen = canOpenNow();
-		if (!canOpen) ImGui::BeginDisabled();
+		{
 
-		// Open Button
-		if (ImGui::Button(openBtnStr, { btnWidht,0 })) {
-			fd->actionDone = true;
-			fd->selectionMade = true;
+			const bool canOpen = canOpenNow();
+
+			bool drawOpen = true;
+			if (!canOpen && fd->isFileMode() && fd->selected.size() == 1 && fd->getSelectedInd(0).isFolder) {
+				drawOpen = false;
+				if (ImGui::Button("Open Folder", {btnWidht,0})) {
+					fd->dirMoveDownInto(fd->entrys.get(*fd->selected.begin()).name);
+				}
+			}
+
+			if (!canOpen) ImGui::BeginDisabled();
+			if (drawOpen) {
+				// Open Button
+				if (ImGui::Button(openBtnStr, { btnWidht,0 })) {
+					fd->actionDone = true;
+					fd->selectionMade = true;
+				}
+			}
+			if (!canOpen) ImGui::EndDisabled();
 		}
-
-		if (!canOpen) ImGui::EndDisabled();
 
 		ImGui::SameLine();
 		// Close Button
@@ -1434,6 +1463,9 @@ void ImGuiFD::FDInstance::DrawDialog(void (*callB)(void* userData), void* userDa
 		End();
 	}
 }
+
+
+
 
 void ImGuiFD::OpenDialog(const char* str_id, ImGuiFDMode mode, const char* path, const char* filter, ImGuiFDDialogFlags flags, size_t maxSelections) {
 	ImGuiID id = ImHashStr(str_id);
