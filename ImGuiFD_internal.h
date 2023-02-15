@@ -381,7 +381,7 @@ namespace ds {
 
 		inline void add(const T& t) {
 			size_t ind = getIndInsert(t);
-			if (ind >= (size_t)data.size())
+			if (ind >= data.size())
 				data.push_back(t);
 			else
 				data.insert(data.begin() + ind, t);
