@@ -1463,6 +1463,9 @@ void ImGuiFD::FDInstance::DrawDialog(void (*callB)(void* userData), void* userDa
 		End();
 	}
 }
+size_t ImGuiFD::FDInstance::sizeBytes() const {
+	return str_id.size_bytes() + sizeof(id);
+}
 
 
 

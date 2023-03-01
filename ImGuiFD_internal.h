@@ -145,6 +145,10 @@ namespace ds {
 		inline const T*     find(const T& v) const              { const T* data = Data;  const T* data_end = Data + Size; while (data < data_end) if (*data == v) break; else ++data; return data; }
 		inline bool         find_erase(const T& v)              { const T* it = find(v); if (it < Data + Size) { erase(it); return true; } return false; }
 		inline size_t       index_from_ptr(const T* it) const   { IM_ASSERT(it >= Data && it < Data + Size); const ptrdiff_t off = it - Data; return (size_t)off; }
+
+		inline size_t       size_bytes() const {
+			return sizeof(Size) + sizeof(Capacity) + sizeof(Data) + Capacity * sizeof(T);
+		}
 	};
 
 	template<typename T0, typename T1>
@@ -185,6 +189,9 @@ namespace ds {
 		inline size_t len() const {
 			return data.size() > 0 ? (data.size()-1) : 0;
 		}
+		inline size_t capacity() const {
+			return data.capacity();
+		}
 
 		inline char operator[](ptrdiff_t off) {
 			size_t ind = off >= 0 ? off : len() + off;
@@ -222,6 +229,10 @@ namespace ds {
 
 		inline bool operator==(const char* s) const {
 			return strcmp(c_str(), s) == 0;
+		}
+
+		inline size_t size_bytes() const {
+			return data.size_bytes();
 		}
 	};
 
@@ -638,6 +649,8 @@ namespace ImGuiFD {
         bool Begin();
         void End();
 		void DrawDialog(void (*callB)(void* userData), void* userData = nullptr);
+
+		size_t sizeBytes() const;
     };
 
 	namespace Native {
