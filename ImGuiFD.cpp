@@ -264,26 +264,171 @@ namespace ImGuiFD {
 	};
 
 	class FileNameFilter {
+	private:
+		class Filter {
+			class SubFilter {
+				ds::string name;
+
+				ds::string include;
+				ds::string exclude;
+
+				ds::string fileName;
+				ds::string fileExt;
+
+				ds::string exact;
+
+			public:
+
+				SubFilter(ds::string cmd) {
+					{
+						const char* colPos = strchr(cmd.c_str(), ':');
+						if (colPos != nullptr) {
+							name = cmd.substr(0, colPos - cmd.c_str());
+							cmd = cmd.substr(colPos - cmd.c_str() + 1, cmd.len());
+						}
+					}
+
+					cmd = cmd.replace(" ", "");
+
+					if (cmd[0] == '=') {
+						exact = cmd.substr(1, cmd.len());
+					}
+					else if (cmd[0] == '!') {
+						exclude = cmd.substr(1, cmd.len());
+					}
+					else {
+						const char* dotPos = strrchr(cmd.c_str(), '.');
+						if (dotPos != NULL) {
+							fileName = cmd.substr(0, dotPos - cmd.c_str());
+							fileExt = cmd.substr(dotPos - cmd.c_str() + 1, cmd.len());
+
+							if (fileName == "*")
+								fileName = "";
+							if (fileExt == "*")
+								fileExt = "";
+						}
+						else {
+							include = cmd;
+						}
+					}
+				}
+
+				bool passes(const char* name) {
+					if (include.len() > 0 && strstr(name, include.c_str()) == NULL)
+						return false;
+
+					if (exclude.len() > 0 && strstr(name, exclude.c_str()) != NULL)
+						return false;
+
+					if (exact.len() > 0 && exact != name)
+						return false;
+
+					{
+						const char* dotPos = strrchr(name, '.');
+						if (dotPos == NULL) {
+							if (fileExt.len() > 0)
+								return false;
+							if (fileName.len() > 0 && fileName != name)
+								return false;
+						}
+						else {
+							if (fileExt.len() > 0 && fileExt != (dotPos+1))
+								return false;
+
+							if (fileName.len() > 0 && strncmp(fileName.c_str(), name, fileName.len() < (dotPos - name) ? fileName.len() : (dotPos - name)) != 0)
+								return false;
+						}
+
+					}
+
+					return true;
+				}
+			};
+
+			ds::vector<SubFilter> filters;
+		public:
+			ds::string rawStr;
+			
+			Filter(const ds::string& cmd) : rawStr(cmd) {
+				size_t last = 0;
+				for (size_t i = 0; i < cmd.len(); i++) {
+					if (cmd[i] == ',' && i>last) {
+						filters.push_back(SubFilter(cmd.substr(last, i)));
+						last = i + 1;
+					}
+				}
+				if (last != cmd.len()) {
+					filters.push_back(SubFilter(cmd.substr(last, cmd.len())));
+				}
+			}
+
+			bool passes(const char* name) {
+				if (filters.size() == 0)
+					return true;
+
+				for (size_t i = 0; i < filters.size(); i++) {
+					if (filters[i].passes(name))
+						return true;
+				}
+				return false;
+			}
+		};
+
 	public:
 		ds::string searchText;
 		size_t filterSel = 0; // currently selected filter
-		ds::vector<ds::string> filters;
+		ds::vector<Filter> filters;
 
 		FileNameFilter() {
 
 		}
-		FileNameFilter(const char* filter) : filters(parseFilterStr(filter)) {
+		FileNameFilter(const char* filter) {
+			size_t len = filter ? strlen(filter) : 0;
 
+			if (len == 0)
+				return;
+
+			if (filter[0] != '{') {
+				filters.push_back(Filter(filter));
+			}
+			else {
+				size_t bracketCntr = 0;
+
+				size_t last = 0;
+				for (size_t i = 0; i < len; i++) {
+					if (filter[i] == '{') bracketCntr++;
+					if (filter[i] == '{') bracketCntr--;
+					if (filter[i] == ',' && bracketCntr == 0 && i>last) {
+						filters.push_back(ds::string(filter+last,filter+i));
+						last = i + 1;
+					}
+				}
+				if (len-last > 0) {
+					filters.push_back(ds::string(filter+last,filter+len));
+				}
+			}
+
+			if (filters.size() > 0)
+				filters.push_back(Filter("*.*"));
 		}
 
-		bool passes(const char* name) {
-			if (searchText.len() == 0)
+		bool passes(const char* name, bool isFolder) {
+			if (searchText.len() > 0) {
+				Filter searchFilter(searchText);
+				if (!searchFilter.passes(name))
+					return false;
+			}
+
+			if (isFolder)
+				return true;
+			
+			if (filters.size() == 0)
 				return true;
 
-			if (strstr(name, searchText.c_str())) {
-				return true;
-			}
-			return false;
+			if (!filters[filterSel].passes(name))
+				return false;
+
+			return true;
 		}
 
 		bool draw(float width = -1) {
@@ -291,22 +436,6 @@ namespace ImGuiFD {
 			bool ret = utils::InputTextString("##Search", "Search", &searchText);
 			ImGui::PopItemWidth();
 			return ret;
-		}
-
-		static ds::vector<ds::string> parseFilterStr(const char* str) {
-			ds::vector<ds::string> out;
-			size_t len = str ? strlen(str) : 0;
-			size_t last = 0;
-			for (size_t i = 0; i < len; i++) {
-				if (str[i] == ',' && i>last) {
-					out.push_back(ds::string(str+last,str+i));
-					last = i + 1;
-				}
-			}
-			if (len-last > 0) {
-				out.push_back(ds::string(str+last,str+len));
-			}
-			return out;
 		}
 	};
 
@@ -389,7 +518,7 @@ namespace ImGuiFD {
 
 			void setEntrysTo(const ds::vector<DirEntry>& src) {
 				data = src;
-				updateFilter();
+				updateFiltering();
 			}
 
 			DirEntry& getRaw(size_t i) {
@@ -398,6 +527,9 @@ namespace ImGuiFD {
 
 			DirEntry& get(size_t i) {
 				return data[dataModed[i]];
+			}
+			size_t getInd(size_t i) {
+				return dataModed[i];
 			}
 
 			size_t size() {
@@ -408,10 +540,10 @@ namespace ImGuiFD {
 				return dataModed[i];
 			}
 
-			void updateFilter() {
+			void updateFiltering() {
 				dataModed.clear();
 				for (size_t i = 0; i < data.size(); i++) {
-					if (filter.passes(data[i].name)) {
+					if (filter.passes(data[i].name, data[i].isFolder)) {
 						dataModed.push_back(i);
 					}
 				}
@@ -433,7 +565,7 @@ namespace ImGuiFD {
 
 			void drawSeachBar(float width = -1) {
 				if (filter.draw(width))
-					updateFilter();
+					updateFiltering();
 			}
 
 			bool wasLoadedSuccesfully() {
@@ -517,7 +649,7 @@ namespace ImGuiFD {
 				for (size_t i = 0; i < selected.size(); i++) {
 					if(i>0)
 						inputText += "\", \"";
-					inputText += entrys.get(selected[i]).name;
+					inputText += entrys.getRaw(selected[i]).name;
 				}
 				inputText += "\"";
 			}
@@ -555,6 +687,9 @@ namespace ImGuiFD {
 				currentPath.setToStr(oldPath.c_str());
 			}
 		}
+		void updateFiltering() {
+			entrys.updateFiltering();
+		}
 
 		bool canUndo() {
 			return !undoStack.isEmpty();
@@ -590,7 +725,7 @@ namespace ImGuiFD {
 
 		DirEntry& getSelectedInd(size_t ind) {
 			IM_ASSERT(ind <= selected.size());
-			return entrys.get(*(selected.begin() + ind));
+			return entrys.getRaw(*(selected.begin() + ind));
 		}
 	};
 
@@ -680,7 +815,7 @@ namespace ImGuiFD {
 		snprintf(buf, bufSize, "%" PRIu64 " Bytes", size);
 	}
 
-	void ClickedOnEntrySelect(size_t ind, bool isSel, bool isFolder) {
+	void ClickedOnEntrySelect(size_t id, bool isSel, bool isFolder) {
 		if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
 			return;
 		if (fd->mode == ImGuiFDMode_OpenDir && !isFolder)
@@ -690,20 +825,20 @@ namespace ImGuiFD {
 			if (isSel) {
 				if (fd->selected.size() != 1) {
 					fd->selected.clear();
-					fd->selected.add(ind);
+					fd->selected.add(id);
 				}
 			}
 			else {
 				if (fd->selected.size() > 0)
 					fd->selected.clear();
-				fd->selected.add(ind);
+				fd->selected.add(id);
 			}
 		}
 		else if (ImGui::GetIO().KeyShift) {
 			size_t a = fd->lastSelected;
 			if (a == (size_t)-1)
-				a = ind;
-			size_t b = ind;
+				a = id;
+			size_t b = id;
 			size_t from, to;
 			if (a<b) {
 				from = a;
@@ -719,14 +854,14 @@ namespace ImGuiFD {
 		}
 		else if (ImGui::GetIO().KeyCtrl) {
 			if (!isSel) {
-				fd->selected.add(ind);
+				fd->selected.add(id);
 
 				// if too many selected delete the earlier selected ones
 				if (fd->selected.size() > fd->maxSelections)
 					fd->selected.erase(fd->selected.begin());
 			}
 			else {
-				fd->selected.eraseItem(ind);
+				fd->selected.eraseItem(id);
 			}
 		}
 
@@ -746,6 +881,26 @@ namespace ImGuiFD {
 		}
 	}
 	
+	void DrawSettings() {
+		ImGui::Checkbox("Show dir first", &settings.showDirFirst);
+		ImGui::Checkbox("Adjust icon width", &settings.adjustIconWidth);
+
+		ImGui::Separator();
+
+		ImGui::DragFloat("Icon scale", &settings.iconModeSize, 1, 10, 300);
+		if (settings.iconModeSize != settings.iconModeSizeDef) {
+			ImGui::SameLine();
+			if (ImGui::Button("Reset")) {
+				settings.iconModeSize = settings.iconModeSizeDef;
+			}
+		}
+
+
+		ImGui::ColorEdit4("Icon text color", (float*)&settings.iconTextCol);
+		ImGui::Checkbox("Ascii art icons", &settings.asciiArtIcons);
+	}
+
+
 	void DrawContorls() {
 		bool canUndo = fd->canUndo();
 		if(!canUndo) ImGui::BeginDisabled();
@@ -932,9 +1087,7 @@ namespace ImGuiFD {
 
 
 		if (ImGui::BeginPopup((fd->str_id + "SettingsPopup").c_str())) {
-			ImGui::Checkbox("Show dir first", &settings.showDirFirst);
-			ImGui::Checkbox("Adjust Icon Width", &settings.adjustIconWidth);
-			ImGui::DragFloat("IconScale", &settings.iconModeSize, 1, 10, 300);
+			DrawSettings();
 			ImGui::EndPopup();
 		}
 	}
@@ -1142,17 +1295,19 @@ namespace ImGuiFD {
 					for (size_t col = 0; col < itemsInThisLine; col++) {
 						size_t ind = row * itemsPerLineRaw + col;
 
+						size_t id = fd->entrys.getInd(ind);
+
 						ImGui::PushID((ImGuiID)ind);
 
-						auto& entry = fd->entrys.get(ind);
-						bool isSel = fd->selected.contains(ind);
+						auto& entry = fd->entrys.getRaw(id);
+						bool isSel = fd->selected.contains(id);
 
 						ImVec2 cursorStart = totalCursorStart + ImVec2{(itemWidth+style.ItemSpacing.x*2)*col, (itemHeight+style.ItemSpacing.y*2)*row};
 						ImVec2 cursorEnd = cursorStart + ImVec2{itemWidth, itemHeight};
 						ImGui::SetCursorPos(cursorStart);
 						ImGui::Selectable("", isSel, 0, { itemWidth, itemHeight });
 						if (ImGui::IsItemClicked()) { // directly using return value of Selectable doesnt work when going into folder (instantly selects hovered item) => ImGui bug?
-							ClickedOnEntrySelect(ind, isSel, entry.isFolder);
+							ClickedOnEntrySelect(id, isSel, entry.isFolder);
 						}
 
 						CheckDoubleClick(entry);
@@ -1182,7 +1337,7 @@ namespace ImGuiFD {
 								
 								ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x/2 - width/2); // center image vertically
 								ImGui::Image(fileData->thumbnail->texID, { width, height });
-								ImGui::Text("%s",entry.name);
+								ImGui::TextUnformatted(entry.name);
 
 								ImGui::Separator();
 
@@ -1219,10 +1374,27 @@ namespace ImGuiFD {
 								ImGui::EndTooltip();
 							}
 
-							const char* iconText = entry.isFolder ? "[DIR]" : "[FILE]";
+							const char* iconText;
+							if (!settings.asciiArtIcons) {
+								iconText = entry.isFolder ? "[DIR]" : "[FILE]";
+							}
+							else {
+								iconText = entry.isFolder ?
+									"    "  "\n"
+									"|=\\_."  "\n"
+									"| D |"  "\n"
+									"*---*"
+									:
+									" __ "  "\n"
+									"|  \\" "\n"
+									"|  |"  "\n"
+									"*--*"
+									;
+							}
+							
 							ImVec2 textSize = ImGui::CalcTextSize(iconText);
 							ImGui::SetCursorPos(ImVec2{ cursorStart.x + itemWidth / 2 - textSize.x / 2, cursorStart.y + (textY-cursorStart.y)/2-textSize.y/2 });
-							ImGui::TextColored(ImColor(IM_COL32(20,20,200,255)),iconText);
+							ImGui::TextColored(settings.iconTextCol,iconText);
 						}
 
 						ImGui::SetCursorPos(ImVec2{ cursorStart.x,textY });
@@ -1308,10 +1480,13 @@ namespace ImGuiFD {
 
 	bool canOpenNow() {
 		if (fd->isFileMode()) {
-			for (auto& id : fd->selected) {
-				auto& entry = fd->entrys.get(id);
+			for (size_t i = 0; i < fd->selected.size(); i++) {
+				auto& entry = fd->getSelectedInd(i);
 				if (entry.isFolder)
 					return false;
+			}
+			for (auto& id : fd->selected) {
+				
 			}
 			return fd->inputText.len() > 0;
 		}
@@ -1340,13 +1515,18 @@ namespace ImGuiFD {
 			IM_ASSERT(fd->entrys.filter.filters.size() > 0);
 			ImGui::PushItemWidth(widthWOBtns);
 
-			if (ImGui::BeginCombo("##filter", fd->entrys.filter.filters[fd->entrys.filter.filterSel].c_str())) {
+			if (ImGui::BeginCombo("##filter", fd->entrys.filter.filters[fd->entrys.filter.filterSel].rawStr.c_str())) {
 				for (size_t i = 0; i < fd->entrys.filter.filters.size(); i++) {
 					ImGui::PushID((ImGuiID)i);
 
 					bool isSelected = i == fd->entrys.filter.filterSel;
-					if (ImGui::Selectable(fd->entrys.filter.filters[i].c_str(), isSelected))
-						fd->entrys.filter.filterSel = i;
+					if (ImGui::Selectable(fd->entrys.filter.filters[i].rawStr.c_str(), isSelected)) {
+						if (fd->entrys.filter.filterSel != i) {
+							fd->entrys.filter.filterSel = i;
+							fd->updateFiltering();
+						}
+					}
+						
 
 					if (isSelected)
 						ImGui::SetItemDefaultFocus();
@@ -1378,8 +1558,20 @@ namespace ImGuiFD {
 			if (drawOpen) {
 				// Open Button
 				if (ImGui::Button(openBtnStr, { btnWidht,0 })) {
-					fd->actionDone = true;
-					fd->selectionMade = true;
+					bool done = true;
+
+					if (fd->mode == ImGuiFDMode_SaveFile) {
+						ds::string path = fd->currentPath.toString() + "/" + fd->inputText.substr(1,-1);
+						if (Native::fileExists(path.c_str())) {
+							done = false;
+							ImGui::OpenPopup("Override File?");
+						}
+					}
+
+					if (done) {
+						fd->actionDone = true;
+						fd->selectionMade = true;
+					}
 				}
 			}
 			if (!canOpen) ImGui::EndDisabled();
@@ -1392,6 +1584,26 @@ namespace ImGuiFD {
 			fd->selectionMade = false;
 		}
 		ImGui::PopItemWidth();
+
+		
+		ImGui::SetNextWindowPos(ImGui::GetWindowPos() + ImGui::GetWindowSize() / 2, ImGuiCond_Appearing, {0.5f,0.5f});
+		if (ImGui::BeginPopup("Override File?")) {
+			ImGui::TextUnformatted("This file already Exists!");
+			ImGui::Separator();
+
+			ImGui::Text("Override the File %s?", fd->inputText.c_str());
+			ImGui::Spacing();
+
+			if (ImGui::Button("Override")) {
+				fd->actionDone = true;
+				fd->selectionMade = true;
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Cancel")) {
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::EndPopup();
+		}
 	}
 
 	void CloseDialogID(ImGuiID id) {
@@ -1572,7 +1784,7 @@ bool ImGuiFD::SelectionMade() {
 	IM_ASSERT(fd != 0);
 	return fd->selectionMade;
 }
-const char* ImGuiFD::GetSelectionStringRaw() {
+const char* ImGuiFD::GetResultStringRaw() {
 	IM_ASSERT(fd != 0);
 
 	IM_ASSERT(fd->selectionMade);

@@ -9,6 +9,17 @@
 #include <stdint.h>
 #include <ctime>
 
+/*
+
+Example Filters:
+    NULL
+    "*"
+    "*.txt"
+    "."
+    "{*},{*.txt,*.text}"
+    "{*},{Text Files:*.txt,*.text}"
+*/
+
 enum {
     ImGuiFDMode_LoadFile = 0,
     ImGuiFDMode_SaveFile,
@@ -29,11 +40,11 @@ namespace ImGuiFD {
         DirEntry& operator=(const DirEntry& src);
         ~DirEntry();
 
-        ImGuiID id;
+        ImGuiID id = -1;
         const char* name = 0;
         const char* dir = 0;
         const char* path = 0;
-        bool isFolder;
+        bool isFolder = false;
 
         uint64_t size = -1;
         time_t lastModified = -1;
@@ -43,7 +54,9 @@ namespace ImGuiFD {
     struct GlobalSettings {
         bool showDirFirst = true;
         bool adjustIconWidth = true;
-        float iconModeSize = 100;
+        ImVec4 iconTextCol = { .08f, .08f, .78f, 1 };
+        const float iconModeSizeDef = 100;
+        float iconModeSize = iconModeSizeDef;
 
         enum {
             DisplayMode_List  = 0,
@@ -53,6 +66,8 @@ namespace ImGuiFD {
 
 
         ImVec4 descTextCol = { .7f, .7f, .7f, 1 };
+
+        bool asciiArtIcons = true;
     };
 
     static GlobalSettings settings;
@@ -96,7 +111,7 @@ namespace ImGuiFD {
 
     bool ActionDone(); // was Open/Cancel (=> anything) pressed?
     bool SelectionMade(); // was Open and not Cancel pressed?
-    const char* GetSelectionStringRaw();
+    const char* GetResultStringRaw();
     size_t GetSelectionStringsAmt();
     const char* GetSelectionNameString(size_t ind);
     const char* GetSelectionPathString(size_t ind);

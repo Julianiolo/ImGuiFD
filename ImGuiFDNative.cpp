@@ -52,7 +52,18 @@ ds::string ImGuiFD::Native::getAbsolutePath(const char* path) {
 	return out;
 }
 
-void setupDirEnt(ImGuiFD::DirEntry* entry, ImGuiID id, const dirent* de, const char* dir_) {
+bool ImGuiFD::Native::fileExists(const char* path) {
+	path = makePathStrOSComply(path);
+#ifdef _MSC_VER
+	struct _stat64 st;
+	return __stat64(path, &st) == 0;
+#else
+	struct stat st;
+	return stat(path, &st) == 0;
+#endif
+}
+
+static void setupDirEnt(ImGuiFD::DirEntry* entry, ImGuiID id, const dirent* de, const char* dir_) {
 	entry->id = id;
 	entry->name = ImStrdup(de->d_name);
 	entry->dir = ImStrdup(dir_);
@@ -94,7 +105,7 @@ void setupDirEnt(ImGuiFD::DirEntry* entry, ImGuiID id, const dirent* de, const c
 #endif
 }
 
-int alphaSortEx(const void* a, const void* b) {
+static int alphaSortEx(const void* a, const void* b) {
 	const dirent** a_ = (const dirent**)a;
 	const dirent** b_ = (const dirent**)b;
 	if (ImGuiFD::settings.showDirFirst) {
