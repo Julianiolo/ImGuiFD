@@ -34,7 +34,8 @@ namespace ds {
 		}
 		inline vector<T>& operator=(const vector<T>& src)       { 
 			clear(); 
-			resize(src.Size);
+			reserve(src.Size);
+			Size = src.Size;
 			for(size_t i = 0; i<src.Size;i++) 
 				IM_PLACEMENT_NEW(&Data[i]) T(src.Data[i]); 
 			return *this; 
@@ -193,7 +194,7 @@ namespace ds {
 			return data.capacity();
 		}
 
-		inline char operator[](ptrdiff_t off) {
+		inline char operator[](ptrdiff_t off) const {
 			size_t ind = off >= 0 ? off : len() + off;
 			return data[ind];
 		}
@@ -205,6 +206,11 @@ namespace ds {
 			for (size_t i = 0; i < s.data.size(); i++) {
 				data[startSize+i] = s.data[i];
 			}
+			return *this;
+		}
+		inline string& operator+=(char c) {
+			data.back() = c;
+			data.push_back(0);
 			return *this;
 		}
 
@@ -223,12 +229,38 @@ namespace ds {
 			return out;
 		}
 
+		inline string replace(const char* find, const char* replace) {
+			string out;
+
+			const size_t findLen = strlen(find);
+
+			size_t nextOcc = strstr(c_str(), find) - c_str();
+			for (size_t i = 0; i < len(); i++) {
+				if (nextOcc == i) {
+					out += replace;
+					i += findLen - 1;
+					nextOcc = strstr(c_str() + i + 1, find) - c_str();
+					continue;
+				}
+
+				out += (*this)[i];
+			}
+			
+			return out;
+		}
+
 		inline bool operator==(const ds::string& s) const {
 			return strcmp(c_str(), s.c_str()) == 0;
 		}
-
 		inline bool operator==(const char* s) const {
 			return strcmp(c_str(), s) == 0;
+		}
+
+		inline bool operator!=(const ds::string& s) const {
+			return !(*this == s);
+		}
+		inline bool operator!=(const char* s) const {
+			return !(*this == s);
 		}
 
 		inline size_t size_bytes() const {
@@ -660,6 +692,7 @@ namespace ImGuiFD {
 		bool isValidDir(const char* dir);
 
 		ds::vector<DirEntry> loadDirEnts(const char* path, bool* success = 0, int (*compare)(const void* a, const void* b) = 0);
+		bool fileExists(const char* path);
 
 		bool makeFolder(const char* path);
 
