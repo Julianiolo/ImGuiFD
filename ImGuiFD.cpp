@@ -586,6 +586,8 @@ namespace ImGuiFD {
 		
 		ds::string inputText = "";
 		ds::string newFolderNameStr = "";
+		ds::string renameStr = "";
+		size_t renameId = -1;
 
 		bool needsEntrysUpdate = false;
 
@@ -727,12 +729,16 @@ namespace ImGuiFD {
 			IM_ASSERT(ind <= selected.size());
 			return entrys.getRaw(*(selected.begin() + ind));
 		}
+		void resetRename() {
+			renameId = -1;
+			renameStr = "";
+		}
 	};
 
 	FileDialog* fd = 0;
 	ds::map<FileDialog> openDialogs;
 
-	void TextWrappedCentered(const char* text, float maxWidth, int maxLines = -1) {
+	ImRect TextWrappedCentered(const char* text, float maxWidth, int maxLines = -1) {
 		ImGuiContext& g = *GImGui;
 		ImVec2 cursorStart = ImGui::GetCursorPos();
 
@@ -740,6 +746,8 @@ namespace ImGuiFD {
 
 		const char* s = text;
 		int lineInd = 0;
+
+		ImVec2 minPos(10000,10000), maxPos(-10000,-10000);
 
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, { 0,0 });
 		while (s < text + len && lineInd < maxLines) {
@@ -760,12 +768,22 @@ namespace ImGuiFD {
 				if (ImCharIsBlankA(c)) { s++; } else if (c == '\n') { s++; break; } else { break; }
 			}
 
-			ImGui::SetCursorPos(cursorStart + ImVec2{maxWidth/2-lineSize.x/2, ImGui::GetTextLineHeightWithSpacing()*lineInd});
-			if (lineInd + 1 >= maxLines && wrap < text+len) {
-				ImGui::RenderTextEllipsis(ImGui::GetWindowDrawList(), ImGui::GetCursorScreenPos(), ImGui::GetCursorScreenPos() + lineSize + ImVec2{0,g.Style.FramePadding.y}, ImGui::GetCursorScreenPos().x + maxWidth, ImGui::GetCursorScreenPos().x + maxWidth, s, text + len, 0);
-			}
-			else {
-				ImGui::TextUnformatted(s, wrap);
+			{
+				const ImVec2 cursorPos = cursorStart + ImVec2{ maxWidth / 2 - lineSize.x / 2, ImGui::GetTextLineHeightWithSpacing() * lineInd };
+				if (cursorPos.x < minPos.x) minPos.x = cursorPos.x;
+				if (cursorPos.y < minPos.y) minPos.y = cursorPos.y;
+
+				if ((cursorPos+lineSize).x > maxPos.x) maxPos.x = (cursorPos+lineSize).x;
+				if ((cursorPos+lineSize).y > maxPos.y) maxPos.y = (cursorPos+lineSize).y;
+
+
+				ImGui::SetCursorPos(cursorPos);
+				if (lineInd + 1 >= maxLines && wrap < text+len) {
+					ImGui::RenderTextEllipsis(ImGui::GetWindowDrawList(), ImGui::GetCursorScreenPos(), ImGui::GetCursorScreenPos() + lineSize + ImVec2{0,g.Style.FramePadding.y}, ImGui::GetCursorScreenPos().x + maxWidth, ImGui::GetCursorScreenPos().x + maxWidth, s, text + len, 0);
+				}
+				else {
+					ImGui::TextUnformatted(s, wrap);
+				}
 			}
 			
 
@@ -773,6 +791,12 @@ namespace ImGuiFD {
 			lineInd++;
 		}
 		ImGui::PopStyleVar();
+
+		// convert to screen space
+		minPos += ImGui::GetWindowPos() - ImVec2{ImGui::GetScrollX(), ImGui::GetScrollY()};
+		maxPos += ImGui::GetWindowPos() - ImVec2{ImGui::GetScrollX(), ImGui::GetScrollY()};
+
+		return ImRect(minPos, maxPos);
 	}
 	bool ComboVertical(const char* str_id, size_t* v, const char** labels, size_t labelCnt, const ImVec2& size_arg = { 0,0 }) {
 		ImGui::PushID(str_id);
@@ -821,7 +845,7 @@ namespace ImGuiFD {
 		if (fd->mode == ImGuiFDMode_OpenDir && !isFolder)
 			return;
 
-		if (ImGui::GetIO().KeyShift == ImGui::GetIO().KeyCtrl) { // both on or both off => standard select
+		if (ImGui::GetIO().KeyShift == ImGui::GetIO().KeyCtrl || ImGui::IsMouseClicked(ImGuiMouseButton_Right)) { // both on or both off => standard select
 			if (isSel) {
 				if (fd->selected.size() != 1) {
 					fd->selected.clear();
@@ -866,6 +890,7 @@ namespace ImGuiFD {
 		}
 
 		fd->setInputTextToSelected();
+		fd->resetRename();
 	}
 	void CheckDoubleClick(const DirEntry& entry) {
 		if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
@@ -878,6 +903,7 @@ namespace ImGuiFD {
 					fd->selectionMade = true;
 				}
 			}
+			fd->resetRename();
 		}
 	}
 	
@@ -1306,7 +1332,7 @@ namespace ImGuiFD {
 						ImVec2 cursorEnd = cursorStart + ImVec2{itemWidth, itemHeight};
 						ImGui::SetCursorPos(cursorStart);
 						ImGui::Selectable("", isSel, 0, { itemWidth, itemHeight });
-						if (ImGui::IsItemClicked()) { // directly using return value of Selectable doesnt work when going into folder (instantly selects hovered item) => ImGui bug?
+						if (ImGui::IsItemClicked() || ImGui::IsItemClicked(ImGuiMouseButton_Right)) { // directly using return value of Selectable doesnt work when going into folder (instantly selects hovered item) => ImGui bug?
 							ClickedOnEntrySelect(id, isSel, entry.isFolder);
 						}
 
@@ -1398,7 +1424,30 @@ namespace ImGuiFD {
 						}
 
 						ImGui::SetCursorPos(ImVec2{ cursorStart.x,textY });
-						TextWrappedCentered(entry.name, cursorEnd.x - cursorStart.x, maxTextLines);
+						{
+							const bool isRenamingThis = entry.id == fd->renameId;
+							const float maxWidth = cursorEnd.x - cursorStart.x;
+
+							if (!isRenamingThis) {
+								TextWrappedCentered(entry.name, maxWidth, maxTextLines);
+							}
+							else {
+								float textWidth = ImGui::CalcTextSize(fd->renameStr.c_str()).x + ImGui::GetStyle().FramePadding.x*2;
+								float width = textWidth < 70 ? 70 : textWidth;
+								ImGui::SetCursorPosX(ImGui::GetCursorPosX() + maxWidth / 2 - width / 2);
+								ImGui::SetKeyboardFocusHere();
+								if (utils::InputTextString("##renameInput", "New Name", &fd->renameStr, ImGuiInputTextFlags_EnterReturnsTrue, { width,0 })) {
+									ds::string path = fd->currentPath.toString();
+									bool success = Native::rename((path + entry.name).c_str(), (path + fd->renameStr).c_str());
+									if (success) {
+										fd->updateEntrys();
+									}
+									else {
+										// TODO
+									}
+								}
+							}
+						}
 
 						ImGui::SetCursorPos(cursorEnd);
 
@@ -1416,27 +1465,17 @@ namespace ImGuiFD {
 		ImGui::EndChild();
 	}
 
-	void DrawDirFiles() {
-		float winHeight = ImGui::GetWindowContentRegionMax().y - ImGui::GetWindowContentRegionMin().y;
-		float height = winHeight - (ImGui::GetCursorPosY()-ImGui::GetCursorStartPos().y) - ImGui::GetFrameHeightWithSpacing() * (fd->hasFilter ? 2 : 1);
-		switch (settings.displayMode) {
-			case GlobalSettings::DisplayMode_List:
-				DrawDirFiles_Table(height);
-				break;
-			case GlobalSettings::DisplayMode_Icons:
-				DrawDirFiles_Icons(height);
-				break;
-		}
-
-		if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
-			ImGui::OpenPopup("ContextMenu");
-		}
-	}
-
-
 	void DrawContextMenu() {
 		bool openNewFolderPopup = false;
 		if (ImGui::BeginPopup("ContextMenu")) {
+			if (fd->selected.size() == 1) {
+				if (ImGui::MenuItem("Rename")) {
+					fd->renameId = fd->getSelectedInd(0).id;
+					fd->renameStr = fd->getSelectedInd(0).name;
+				}
+				ImGui::Separator();
+			}
+
 			if (ImGui::MenuItem("Clear Selection")) {
 				fd->selected.clear();
 			}
@@ -1476,6 +1515,24 @@ namespace ImGuiFD {
 			}
 			ImGui::EndPopup();
 		}
+	}
+
+	void DrawDirFiles() {
+		float winHeight = ImGui::GetWindowContentRegionMax().y - ImGui::GetWindowContentRegionMin().y;
+		float height = winHeight - (ImGui::GetCursorPosY()-ImGui::GetCursorStartPos().y) - ImGui::GetFrameHeightWithSpacing() * (fd->hasFilter ? 2 : 1);
+		switch (settings.displayMode) {
+			case GlobalSettings::DisplayMode_List:
+				DrawDirFiles_Table(height);
+				break;
+			case GlobalSettings::DisplayMode_Icons:
+				DrawDirFiles_Icons(height);
+				break;
+		}
+
+		if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
+			ImGui::OpenPopup("ContextMenu");
+		}
+		DrawContextMenu();
 	}
 
 	bool canOpenNow() {

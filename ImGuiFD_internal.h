@@ -694,6 +694,8 @@ namespace ImGuiFD {
 		ds::vector<DirEntry> loadDirEnts(const char* path, bool* success = 0, int (*compare)(const void* a, const void* b) = 0);
 		bool fileExists(const char* path);
 
+		bool rename(const char* name, const char* newName);
+
 		bool makeFolder(const char* path);
 
 		const char* makePathStrOSComply(const char* path);

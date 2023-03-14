@@ -63,6 +63,10 @@ bool ImGuiFD::Native::fileExists(const char* path) {
 #endif
 }
 
+bool ImGuiFD::Native::rename(const char* name, const char* newName) {
+	return ::rename(name, newName) == 0;
+}
+
 static void setupDirEnt(ImGuiFD::DirEntry* entry, ImGuiID id, const dirent* de, const char* dir_) {
 	entry->id = id;
 	entry->name = ImStrdup(de->d_name);
