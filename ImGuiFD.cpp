@@ -13,6 +13,28 @@
 
 namespace ImGuiFD {
 	namespace utils {
+		const char* findCharInStrFromBack(char c, const char* str, const char* strEnd = nullptr) {
+			if (strEnd == nullptr)
+				strEnd = str + strlen(str);
+			for (const char* ptr = strEnd-1; ptr >= str; ptr--) {
+				if (*ptr == c)
+					return ptr;
+			}
+			return nullptr;
+		}
+		const char* getFileName(const char* path, const char* path_end = 0) {
+			if (path_end == 0)
+				path_end = path + strlen(path);
+
+			while(path+1 <= path_end && (*(path_end-1) == '/' || *(path_end-1) == '\\'))
+				path_end--;
+
+			const char* lastSlash = findCharInStrFromBack('/', path, path_end);
+			const char* lastBSlash = findCharInStrFromBack('\\', path, path_end);
+			const char* lastDiv = ImMax(lastSlash != nullptr ? lastSlash : 0, lastBSlash != nullptr ? lastBSlash : 0);
+
+			return lastDiv + 1;
+		}
 		ds::string fixDirStr(const char* path) {
 			ds::string out;
 
@@ -105,11 +127,11 @@ namespace ImGuiFD {
 			}
 			return out;
 		}
-		ds::vector<ds::pair<ds::string, ds::string>> splitInput(const char* str, const char* dir) {
+		ds::vector<ds::pair<const char*, ds::string>> splitInput(const char* str, const char* dir) {
 			size_t len = strlen(str);
 			ds::string dirStr = dir;
 
-			ds::vector<ds::pair<ds::string, ds::string>> out;
+			ds::vector<ds::pair<const char*, ds::string>> out;
 			bool insideQuote = false;
 
 			size_t i = 0;
@@ -123,12 +145,25 @@ namespace ImGuiFD {
 						last = i+1;
 					}
 					else {
-						ds::string name(str+last,str+i);
-						ds::string path = Native::makePathStrOSComply((dirStr + name).c_str());
-						out.push_back({ name,path });
+						ds::string path(str+last,str+i);
+						if (path[0] != '/') { // check if path is relative
+							path = dirStr + path;
+						}
+						path = Native::makePathStrOSComply(path.c_str());
+						out.push_back({ getFileName(path.c_str()),path});
+						last = i+1;
 					}
 				}
 				i++;
+			}
+			if (last != i) {
+				ds::string path(str+last,str+i);
+				if (path[0] != '/') { // check if path is relative
+					path = dirStr + path;
+				}
+				path = Native::makePathStrOSComply(path.c_str());
+				out.push_back({ getFileName(path.c_str()),path});
+				last = i+1;
 			}
 
 			return out;
@@ -626,7 +661,7 @@ namespace ImGuiFD {
 		bool toDelete = false;
 		bool showLoadErrorMsg = false;
 
-		ds::vector<ds::pair<ds::string,ds::string>> inputStrs;
+		ds::vector<ds::pair<const char*,ds::string>> inputStrs;
 
 		FileDialog(ImGuiID id, const char* str_id, const char* filter, const char* path, ImGuiFDMode mode, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1) : 
 			str_id(str_id), id(id), path(utils::fixDirStr(Native::getAbsolutePath(path).c_str())), 
@@ -672,7 +707,7 @@ namespace ImGuiFD {
 		void setInputTextToSelected() {
 			if (selected.size() == 0) {
 				if (mode == ImGuiFDMode_OpenDir) {
-					inputText = currentPath.toString(); // if selecting a directory, always have the folder we are in as default if nothing is selected
+					inputText = ds::string("\"") + currentPath.toString() + "\""; // if selecting a directory, always have the folder we are in as default if nothing is selected
 				}
 				else {
 					inputText = "";
@@ -1689,8 +1724,7 @@ namespace ImGuiFD {
 			ImGui::Spacing();
 
 			if (ImGui::Button("Override")) {
-				fd->actionDone = true;
-				fd->selectionMade = true;
+				OpenNow();
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Cancel")) {
@@ -1899,7 +1933,7 @@ const char* ImGuiFD::GetSelectionNameString(size_t ind) {
 
 	IM_ASSERT(fd->selectionMade); // maybe you didn't check if a selection was made?
 
-	return fd->inputStrs[ind].first.c_str();
+	return fd->inputStrs[ind].first;
 }
 const char* ImGuiFD::GetSelectionPathString(size_t ind) {
 	IM_ASSERT(fd != 0);
