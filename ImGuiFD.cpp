@@ -6,7 +6,9 @@
 #include <stdint.h>
 #include <time.h> // used for localtime() and strftime()
 
+#ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS 1
+#endif
 #include <inttypes.h> // used for u64 in format string
 
 namespace ImGuiFD {
@@ -101,6 +103,34 @@ namespace ImGuiFD {
 					last = i + 1;
 				}
 			}
+			return out;
+		}
+		ds::vector<ds::pair<ds::string, ds::string>> splitInput(const char* str, const char* dir) {
+			size_t len = strlen(str);
+			ds::string dirStr = dir;
+
+			ds::vector<ds::pair<ds::string, ds::string>> out;
+			bool insideQuote = false;
+
+			size_t i = 0;
+			size_t last = 0;
+			while (i < len) {
+				char c = str[i];
+				if (c == '"') {
+					insideQuote = !insideQuote;
+
+					if (insideQuote) {
+						last = i+1;
+					}
+					else {
+						ds::string name(str+last,str+i);
+						ds::string path = Native::makePathStrOSComply((dirStr + name).c_str());
+						out.push_back({ name,path });
+					}
+				}
+				i++;
+			}
+
 			return out;
 		}
 
@@ -335,7 +365,7 @@ namespace ImGuiFD {
 							if (fileExt.len() > 0 && fileExt != (dotPos+1))
 								return false;
 
-							if (fileName.len() > 0 && strncmp(fileName.c_str(), name, fileName.len() < (dotPos - name) ? fileName.len() : (dotPos - name)) != 0)
+							if (fileName.len() > 0 && strncmp(fileName.c_str(), name, fileName.len() < (size_t)(dotPos - name) ? fileName.len() : (dotPos - name)) != 0)
 								return false;
 						}
 
@@ -596,6 +626,8 @@ namespace ImGuiFD {
 		bool toDelete = false;
 		bool showLoadErrorMsg = false;
 
+		ds::vector<ds::pair<ds::string,ds::string>> inputStrs;
+
 		FileDialog(ImGuiID id, const char* str_id, const char* filter, const char* path, ImGuiFDMode mode, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1) : 
 			str_id(str_id), id(id), path(utils::fixDirStr(Native::getAbsolutePath(path).c_str())), 
 			currentPath(this->path.c_str()), oldPath(this->path),
@@ -839,6 +871,13 @@ namespace ImGuiFD {
 		snprintf(buf, bufSize, "%" PRIu64 " Bytes", size);
 	}
 
+	void OpenNow() {
+		fd->inputStrs = utils::splitInput(fd->inputText.c_str(), fd->currentPath.toString().c_str());
+
+		fd->actionDone = true;
+		fd->selectionMade = true;
+	}
+
 	void ClickedOnEntrySelect(size_t id, bool isSel, bool isFolder) {
 		if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
 			return;
@@ -899,8 +938,7 @@ namespace ImGuiFD {
 			}
 			else {
 				if (fd->mode == ImGuiFDMode_LoadFile) {
-					fd->actionDone = true;
-					fd->selectionMade = true;
+					OpenNow();
 				}
 			}
 			fd->resetRename();
@@ -1420,7 +1458,7 @@ namespace ImGuiFD {
 							
 							ImVec2 textSize = ImGui::CalcTextSize(iconText);
 							ImGui::SetCursorPos(ImVec2{ cursorStart.x + itemWidth / 2 - textSize.x / 2, cursorStart.y + (textY-cursorStart.y)/2-textSize.y/2 });
-							ImGui::TextColored(settings.iconTextCol,iconText);
+							ImGui::TextColored(settings.iconTextCol, "%s", iconText);
 						}
 
 						ImGui::SetCursorPos(ImVec2{ cursorStart.x,textY });
@@ -1542,9 +1580,9 @@ namespace ImGuiFD {
 				if (entry.isFolder)
 					return false;
 			}
-			for (auto& id : fd->selected) {
-				
-			}
+			//for (auto& id : fd->selected) {
+			//	
+			//}
 			return fd->inputText.len() > 0;
 		}
 		else if (fd->isDirMode()) {
@@ -1626,8 +1664,7 @@ namespace ImGuiFD {
 					}
 
 					if (done) {
-						fd->actionDone = true;
-						fd->selectionMade = true;
+						OpenNow();
 					}
 				}
 			}
@@ -1662,6 +1699,8 @@ namespace ImGuiFD {
 			ImGui::EndPopup();
 		}
 	}
+
+	
 
 	void CloseDialogID(ImGuiID id) {
 		if (openDialogs.contains(id))
@@ -1860,25 +1899,14 @@ const char* ImGuiFD::GetSelectionNameString(size_t ind) {
 
 	IM_ASSERT(fd->selectionMade); // maybe you didn't check if a selection was made?
 
-	if (fd->selected.size() == 0) {
-		return ""; // TODO
-	}
-	else {
-		return fd->entrys.getRaw(fd->selected[ind]).name;
-	}
+	return fd->inputStrs[ind].first.c_str();
 }
 const char* ImGuiFD::GetSelectionPathString(size_t ind) {
 	IM_ASSERT(fd != 0);
 
 	IM_ASSERT(fd->selectionMade); // maybe you didn't check if a selection was made?
 
-	if (fd->selected.size() == 0) {
-		return Native::makePathStrOSComply(fd->inputText.c_str());
-	}
-	else {
-		return Native::makePathStrOSComply(fd->entrys.getRaw(fd->selected[ind]).path);
-	}
-	
+	return fd->inputStrs[ind].second.c_str();
 }
 
 void ImGuiFD::DrawDebugWin(const char* str_id) {
