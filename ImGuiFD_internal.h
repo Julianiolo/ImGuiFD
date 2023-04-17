@@ -39,9 +39,16 @@ namespace ds {
 				IM_PLACEMENT_NEW(&Data[i]) T(src.Data[i]); 
 			return *this; 
 		}
-		inline ~vector()                                        { if (Data) { for (size_t n = 0; n < Size; n++) Data[n].~T(); IM_FREE(Data); } }
+		inline ~vector()                                        { 
+			if (Data) { 
+				for (size_t n = 0; n < Size; n++) 
+					Data[n].~T();
+				memset(Data, 0, Size*sizeof(T));
+				IM_FREE(Data); 
+			} 
+		}
 
-		inline void         clear()                             { if (Data) { for (size_t n = 0; n < Size; n++) Data[n].~T(); Size = Capacity = 0; IM_FREE(Data); Data = NULL; } }
+		inline void         clear()                             { if (Data) { for (size_t n = 0; n < Size; n++) Data[n].~T(); memset(Data, 0, Size*sizeof(T)); Size = Capacity = 0; IM_FREE(Data); Data = NULL; } }
 
 		inline bool         empty() const                       { return Size == 0; }
 		inline size_t       size() const                        { return Size; }
