@@ -127,11 +127,11 @@ namespace ImGuiFD {
 			}
 			return out;
 		}
-		ds::vector<ds::pair<const char*, ds::string>> splitInput(const char* str, const char* dir) {
+		ds::vector<ds::pair<ds::string, ds::string>> splitInput(const char* str, const char* dir) {
 			size_t len = strlen(str);
 			ds::string dirStr = dir;
 
-			ds::vector<ds::pair<const char*, ds::string>> out;
+			ds::vector<ds::pair<ds::string, ds::string>> out;
 			bool insideQuote = false;
 
 			size_t i = 0;
@@ -661,7 +661,7 @@ namespace ImGuiFD {
 		bool toDelete = false;
 		bool showLoadErrorMsg = false;
 
-		ds::vector<ds::pair<const char*,ds::string>> inputStrs;
+		ds::vector<ds::pair<ds::string,ds::string>> inputStrs;
 
 		FileDialog(ImGuiID id, const char* str_id, const char* filter, const char* path, ImGuiFDMode mode, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1) : 
 			str_id(str_id), id(id), path(utils::fixDirStr(Native::getAbsolutePath(path).c_str())), 
@@ -1933,7 +1933,7 @@ const char* ImGuiFD::GetSelectionNameString(size_t ind) {
 
 	IM_ASSERT(fd->selectionMade); // maybe you didn't check if a selection was made?
 
-	return fd->inputStrs[ind].first;
+	return fd->inputStrs[ind].first.c_str();
 }
 const char* ImGuiFD::GetSelectionPathString(size_t ind) {
 	IM_ASSERT(fd != 0);
