@@ -5,6 +5,8 @@
     #define _CRT_SECURE_NO_WARNINGS 1
 #endif
 
+
+#define IMGUI_DEFINE_MATH_OPERATORS 1
 #include "imgui.h"
 #include <stdint.h>
 #include <ctime>

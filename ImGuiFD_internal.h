@@ -2,7 +2,6 @@
 #define __IMGUIFD_INTERNAL_H__
 
 #include "ImGuiFD.h"
-#define IMGUI_DEFINE_MATH_OPERATORS 1
 #include "imgui_internal.h"
 
 namespace ds {

@@ -74,7 +74,7 @@ namespace ImGuiFD {
 				char c = path[ind];
 				switch (c) {
 				case '\\':
-					c = '/'; // no break here is intended, I think?
+					c = '/'; // fall through
 				case '/':
 				{
 					if (!lastWasSlash) {
