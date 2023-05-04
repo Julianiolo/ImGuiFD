@@ -1,6 +1,7 @@
 #ifndef __IMGUIFD_INTERNAL_H__
 #define __IMGUIFD_INTERNAL_H__
 
+#define IMGUI_DEFINE_MATH_OPERATORS 1
 #include "ImGuiFD.h"
 #include "imgui_internal.h"
 
