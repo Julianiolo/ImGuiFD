@@ -26,8 +26,8 @@ namespace ImGuiFD {
 			if (path_end == 0)
 				path_end = path + strlen(path);
 
-			while(path+1 <= path_end && (*(path_end-1) == '/' || *(path_end-1) == '\\'))
-				path_end--;
+			//while(path+1 <= path_end && (*(path_end-1) == '/' || *(path_end-1) == '\\'))
+			//	path_end--;
 
 			const char* lastSlash = findCharInStrFromBack('/', path, path_end);
 			const char* lastBSlash = findCharInStrFromBack('\\', path, path_end);
@@ -150,7 +150,8 @@ namespace ImGuiFD {
 							path = dirStr + path;
 						}
 						path = Native::makePathStrOSComply(path.c_str());
-						out.push_back({ getFileName(path.c_str()),path});
+						const char* filename = getFileName(path.c_str());
+						out.push_back({ filename,path});
 						last = i+1;
 					}
 				}
