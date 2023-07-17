@@ -704,7 +704,7 @@ namespace ImGuiFD {
 
 		bool makeFolder(const char* path);
 
-		const char* makePathStrOSComply(const char* path);
+		ds::string makePathStrOSComply(const char* path);
 	}
 }
 

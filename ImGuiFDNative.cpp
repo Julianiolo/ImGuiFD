@@ -53,13 +53,13 @@ ds::string ImGuiFD::Native::getAbsolutePath(const char* path) {
 }
 
 bool ImGuiFD::Native::fileExists(const char* path) {
-	path = makePathStrOSComply(path);
+	ds::string path_ = makePathStrOSComply(path);
 #ifdef _MSC_VER
 	struct _stat64 st;
-	return __stat64(path, &st) == 0;
+	return __stat64(path_.c_str(), &st) == 0;
 #else
 	struct stat st;
-	return stat(path, &st) == 0;
+	return stat(path_.c_str(), &st) == 0;
 #endif
 }
 
@@ -214,10 +214,15 @@ bool ImGuiFD::Native::makeFolder(const char* path) {
 	return status == 0;
 }
 
-const char* ImGuiFD::Native::makePathStrOSComply(const char* path) {
+ds::string ImGuiFD::Native::makePathStrOSComply(const char* path) {
 #ifdef _WIN32
 	while (*path == '/')
 		path++;
+
+	size_t len = strlen(path);
+	if (len == 2 && path[len-1] == ':') {
+		return ds::string(path) + "/";
+	}
 #endif
 	return path;
 }
