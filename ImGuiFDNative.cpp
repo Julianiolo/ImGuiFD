@@ -67,6 +67,35 @@ bool ImGuiFD::Native::rename(const char* name, const char* newName) {
 	return ::rename(name, newName) == 0;
 }
 
+static void statDirEnt(ImGuiFD::DirEntry* entry) {
+	ds::string path = ImGuiFD::Native::makePathStrOSComply(entry->path);
+
+#ifdef DT_HAS_STAT
+#ifdef _MSC_VER
+	struct _stat64 st;
+	int ret = __stat64(path.c_str(), &st);
+#else
+	struct stat st;
+	int ret = lstat(path.c_str(), &st);
+#endif
+
+	if (ret != 0)
+		return;
+
+	entry->size = entry->isFolder? -1 : st.st_size;
+	entry->lastModified = st.st_mtime;
+	entry->creationDate = st.st_ctime;
+
+#else
+#ifdef _WIN32
+	WIN32_FILE_ATTRIBUTE_DATA fInfo;
+	GetFileAttributesEx(path.c_str(), GetFileExInfoStandard,&fInfo);
+	entry->size = ((uint64_t)fInfo.nFileSizeHigh << 32) | fInfo.nFileSizeLow;
+	entry->creationDate = ((uint64_t)fInfo.ftCreationTime.dwHighDateTime << 32) | fInfo.ftCreationTime.dwLowDateTime;
+#endif
+#endif
+}
+
 static void setupDirEnt(ImGuiFD::DirEntry* entry, ImGuiID id, const dirent* de, const char* dir_) {
 	entry->id = id;
 	entry->name = ImStrdup(de->d_name);
@@ -84,29 +113,7 @@ static void setupDirEnt(ImGuiFD::DirEntry* entry, ImGuiID id, const dirent* de, 
 		entry->path = ImStrdup(tmp.c_str());
 	}
 	
-
-
-#ifdef DT_HAS_STAT
-#ifdef _MSC_VER
-	struct _stat64 st;
-	__stat64(entry->path, &st);
-#else
-	struct stat st;
-	stat(entry->path, &st);
-#endif
-
-	entry->size = entry->isFolder? -1 : st.st_size;
-	entry->lastModified = st.st_mtime;
-	entry->creationDate = st.st_ctime;
-
-#else
-#ifdef _WIN32
-	WIN32_FILE_ATTRIBUTE_DATA fInfo;
-	GetFileAttributesEx(entry->path.c_str(), GetFileExInfoStandard,&fInfo);
-	entry->size = ((uint64_t)fInfo.nFileSizeHigh << 32) | fInfo.nFileSizeLow;
-	entry->creationDate = ((uint64_t)fInfo.ftCreationTime.dwHighDateTime << 32) | fInfo.ftCreationTime.dwLowDateTime;
-#endif
-#endif
+	statDirEnt(entry);
 }
 
 static int alphaSortEx(const void* a, const void* b) {
@@ -131,7 +138,7 @@ ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path, boo
 #ifdef _WIN32
 	if (strlen(path) == 1 && path[0] == '/') {
 		char buf[512];
-		int byteLen = GetLogicalDriveStrings(sizeof(buf), buf);
+		int byteLen = GetLogicalDriveStringsA(sizeof(buf), buf);
 		if (byteLen > 0) {
 			*success = true;
 			size_t off = 0;
@@ -150,6 +157,8 @@ ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path, boo
 
 				entry.isFolder = true;
 				entry.id = id;
+
+				statDirEnt(&entry);
 				
 				off += strlen(buf+off)+1;
 				id++;
@@ -166,8 +175,6 @@ ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path, boo
 		path++;
 #endif
 
-
-
 	dirent** namelist = 0; // pointer for array of dirent*
 	int numRead = scandir(path, &namelist, 0, (int (*)(const dirent**,const dirent**))compare);
 	//IM_ASSERT(namelist != 0); // check if scandir() put something into namelist
@@ -179,7 +186,7 @@ ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path, boo
 			IM_ASSERT(namelist[i] != NULL);
 			if (namelist[i]->d_name[0] != '.' || (strcmp(namelist[i]->d_name,".") != 0 && strcmp(namelist[i]->d_name,"..") != 0)) {
 				entrys.push_back(DirEntry());
-				setupDirEnt(&entrys.back(), i+(hash<<12), namelist[i], path);
+				setupDirEnt(&entrys.back(), (hash<<16)+i, namelist[i], path);
 			}
 			free(namelist[i]);
 		}
