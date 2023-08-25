@@ -31,6 +31,10 @@ namespace ImGuiFD {
 
 			const char* lastSlash = findCharInStrFromBack('/', path, path_end);
 			const char* lastBSlash = findCharInStrFromBack('\\', path, path_end);
+
+			if (lastSlash == NULL && lastBSlash == NULL)
+				return path;
+
 			const char* lastDiv = ImMax(lastSlash != nullptr ? lastSlash : 0, lastBSlash != nullptr ? lastBSlash : 0);
 
 			return lastDiv + 1;
@@ -1552,6 +1556,7 @@ namespace ImGuiFD {
 
 			if (ImGui::MenuItem("Clear Selection")) {
 				fd->selected.clear();
+				fd->setInputTextToSelected();
 			}
 
 			if (ImGui::MenuItem("New Folder")) {
