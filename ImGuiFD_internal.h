@@ -281,7 +281,7 @@ namespace ds {
 
 		inline size_t getIndContains(const ImGuiID val) const {
 			if (data.Size == 0)
-				return -1;
+				return (size_t)-1;
 
 			size_t from = 0, to = data.size();
 			while (from != to) {
@@ -289,12 +289,12 @@ namespace ds {
 				const ImGuiID valMid = data[mid].first;
 				if (valMid > val) {
 					if (mid == to)
-						return -1;
+						return (size_t)-1;
 					to = mid;
 				}
 				else if (valMid < val) {
 					if (mid == from)
-						return -1;
+						return (size_t)-1;
 					from = mid;
 				}
 				else {
@@ -302,10 +302,12 @@ namespace ds {
 				}
 			}
 
-			if (data[from].first == val)
+			if (data[from].first == val) {
 				return from;
-			else
-				return -1;
+			}
+			else {
+				return (size_t)-1;
+			}
 		}
 		inline size_t getIndInsert(const ImGuiID val) const {
 			if (data.size() == 0)
@@ -374,7 +376,7 @@ namespace ds {
 
 		inline size_t getIndContains(const T& val) const {
 			if (data.Size == 0)
-				return -1;
+				return (size_t)-1;
 
 			size_t from = 0, to = data.size();
 			while (from != to) {
@@ -382,12 +384,12 @@ namespace ds {
 				const T& valMid = data[mid];
 				if (valMid > val) {
 					if (mid == to)
-						return -1;
+						return (size_t)-1;
 					to = mid;
 				}
 				else if (valMid < val) {
 					if (mid == from)
-						return -1;
+						return (size_t)-1;
 					from = mid;
 				}
 				else {
@@ -395,10 +397,12 @@ namespace ds {
 				}
 			}
 
-			if (data[from] == val)
+			if (data[from] == val) {
 				return from;
-			else
-				return -1;
+			}
+			else {
+				return (size_t)-1;
+			}
 		}
 		inline size_t getIndInsert(const T& val) const {
 			if (data.size() == 0)

@@ -44,13 +44,13 @@ namespace ImGuiFD {
         DirEntry& operator=(const DirEntry& src);
         ~DirEntry();
 
-        ImGuiID id = -1;
+        ImGuiID id = (ImGuiID)-1;
         const char* name = 0;
         const char* dir = 0;
         const char* path = 0;
         bool isFolder = false;
 
-        uint64_t size = -1;
+        uint64_t size = (uint64_t)-1;
         time_t lastModified = -1;
         time_t creationDate = -1;
     };
