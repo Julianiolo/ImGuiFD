@@ -383,29 +383,29 @@ namespace ImGuiFD {
 					}
 				}
 
-				bool passes(const char* name) {
-					if (include.len() > 0 && strstr(name, include.c_str()) == NULL)
+				bool passes(const char* str) {
+					if (exact.len() > 0 && exact != str)
 						return false;
 
-					if (exclude.len() > 0 && strstr(name, exclude.c_str()) != NULL)
+					if (include.len() > 0 && strstr(str, include.c_str()) == NULL)
 						return false;
 
-					if (exact.len() > 0 && exact != name)
+					if (exclude.len() > 0 && strstr(str, exclude.c_str()) != NULL)
 						return false;
 
 					{
-						const char* dotPos = strrchr(name, '.');
+						const char* dotPos = strrchr(str, '.');
 						if (dotPos == NULL) {
 							if (fileExt.len() > 0)
 								return false;
-							if (fileName.len() > 0 && fileName != name)
+							if (fileName.len() > 0 && fileName != str)
 								return false;
 						}
 						else {
 							if (fileExt.len() > 0 && fileExt != (dotPos+1))
 								return false;
 
-							if (fileName.len() > 0 && strncmp(fileName.c_str(), name, fileName.len() < (size_t)(dotPos - name) ? fileName.len() : (dotPos - name)) != 0)
+							if (fileName.len() > 0 && strncmp(fileName.c_str(), str, fileName.len() < (size_t)(dotPos - str) ? fileName.len() : (dotPos - str)) != 0)
 								return false;
 						}
 
@@ -645,7 +645,7 @@ namespace ImGuiFD {
 		EntryManager entrys;
 		FileDataCache fileDataCache;
 
-		size_t lastSelected = -1;
+		size_t lastSelected = (size_t)-1;
 		ds::set<size_t> selected;
 
 		ImGuiFDMode mode;
@@ -657,7 +657,7 @@ namespace ImGuiFD {
 		ds::string inputText = "";
 		ds::string newFolderNameStr = "";
 		ds::string renameStr = "";
-		size_t renameId = -1;
+		size_t renameId = (size_t)-1;
 
 		bool needsEntrysUpdate = false;
 
@@ -751,7 +751,7 @@ namespace ImGuiFD {
 
 				fileDataCache.clear();
 
-				lastSelected = -1;
+				lastSelected = (size_t)-1;
 				selected.clear();
 				oldPath = curDirStr;
 			}
@@ -802,7 +802,7 @@ namespace ImGuiFD {
 			return entrys.getRaw(*(selected.begin() + ind));
 		}
 		void resetRename() {
-			renameId = -1;
+			renameId = (size_t)-1;
 			renameStr = "";
 		}
 	};
@@ -1060,7 +1060,7 @@ namespace ImGuiFD {
 
 			// calculate total width of all dir buttons
 			float totalWidth = 0;
-			size_t lastToFit = -1; // including the ... button
+			size_t lastToFit = (size_t)-1; // including the ... button
 			
 			if (!fd->forceDisplayAllDirs) {
 				for (ptrdiff_t i = fd->currentPath.parts.size()-1; i >= 0; i--) {
@@ -1349,7 +1349,7 @@ namespace ImGuiFD {
 		float itemHeight = itemWidthRaw * (3.0f / 4.0f);
 		ImVec2 padding(5,5);
 
-		float width = ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ScrollbarSize;
+		const float width = ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ScrollbarSize;
 
 		size_t itemsPerLineRaw = (size_t)(width / (itemWidthRaw+padding.x*2));
 		if (itemsPerLineRaw == 0) itemsPerLineRaw = 1;
@@ -1427,20 +1427,20 @@ namespace ImGuiFD {
 								ImGui::BeginTooltip();
 
 								float size = 200;
-								float width, height;
+								float img_width, img_height;
 
 								if (fileData->thumbnail->width > fileData->thumbnail->height) {
-									width = size;
-									height = ((float)fileData->thumbnail->height / (float)fileData->thumbnail->width) * width;
+									img_width = size;
+									img_height = ((float)fileData->thumbnail->height / (float)fileData->thumbnail->width) * img_width;
 								}
 								else {
-									height = size;
-									width = ((float)fileData->thumbnail->width / (float)fileData->thumbnail->height) * height;
+									img_height = size;
+									img_width = ((float)fileData->thumbnail->width / (float)fileData->thumbnail->height) * img_height;
 								}
 								
 								
-								ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x/2 - width/2); // center image vertically
-								ImGui::Image(fileData->thumbnail->texID, { width, height });
+								ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x/2 - img_width/2); // center image vertically
+								ImGui::Image(fileData->thumbnail->texID, { img_width, img_height });
 								ImGui::TextUnformatted(entry.name);
 
 								ImGui::Separator();
@@ -1510,11 +1510,11 @@ namespace ImGuiFD {
 								TextWrappedCentered(entry.name, maxWidth, maxTextLines);
 							}
 							else {
-								float textWidth = ImGui::CalcTextSize(fd->renameStr.c_str()).x + ImGui::GetStyle().FramePadding.x*2;
-								float width = textWidth < 70 ? 70 : textWidth;
-								ImGui::SetCursorPosX(ImGui::GetCursorPosX() + maxWidth / 2 - width / 2);
+								const float textWidth = ImGui::CalcTextSize(fd->renameStr.c_str()).x + ImGui::GetStyle().FramePadding.x*2;
+								float inputWidth = textWidth < 70 ? 70 : textWidth;
+								ImGui::SetCursorPosX(ImGui::GetCursorPosX() + maxWidth / 2 - inputWidth / 2);
 								ImGui::SetKeyboardFocusHere();
-								if (utils::InputTextString("##renameInput", "New Name", &fd->renameStr, ImGuiInputTextFlags_EnterReturnsTrue, { width,0 })) {
+								if (utils::InputTextString("##renameInput", "New Name", &fd->renameStr, ImGuiInputTextFlags_EnterReturnsTrue, { inputWidth,0 })) {
 									ds::string path = fd->currentPath.toString();
 									bool success = Native::rename((path + entry.name).c_str(), (path + fd->renameStr).c_str());
 									if (success) {
