@@ -5,6 +5,10 @@
 #include "ImGuiFD.h"
 #include "imgui_internal.h"
 
+#ifdef IMGUIFD_ENABLE_STL
+#include <functional>
+#endif
+
 namespace ds {
 	template<typename T>
 	struct vector{
@@ -677,16 +681,32 @@ namespace ds {
 
 namespace ImGuiFD {
 	struct FDInstance {
-		ds::string str_id;
-        ImGuiID id;
+		const ds::string str_id;
+        const ImGuiID id;
 
         FDInstance(const char* str_id);
 
         void OpenDialog(ImGuiFDMode mode, const char* path, const char* filter = NULL, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
 
-        bool Begin();
-        void End();
-		void DrawDialog(void (*callB)(void* userData), void* userData = nullptr);
+        bool Begin() const;
+        void End() const;
+		
+		// for ease of use, not nescessary
+		void DrawDialog(void (*callB)(void* userData), void* userData) const;
+
+#ifdef IMGUIFD_ENABLE_STL
+		inline void DrawDialog(std::function<void(void)> callB) const {
+			if(Begin()) {
+				if(ImGuiFD::ActionDone()) {
+					if(ImGuiFD::SelectionMade()) {
+						callB();
+					}
+					ImGuiFD::CloseCurrentDialog();
+				}
+				End();
+			}
+		}
+#endif
 
 		size_t sizeBytes() const;
     };
