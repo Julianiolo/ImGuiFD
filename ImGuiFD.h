@@ -1,6 +1,13 @@
 #ifndef __IMGUIFD_H__
 #define __IMGUIFD_H__
 
+#define IMGUIFD_VERSION "0.1 alpha"
+#define IMGUIFD_VERSION_NUM 0
+
+// uncomment or define before including this for stl support
+//#define IMGUIFD_ENABLE_STL 1
+
+
 #ifdef _MSC_VER
     #ifndef _CRT_SECURE_NO_WARNINGS
         #define _CRT_SECURE_NO_WARNINGS 1
@@ -101,8 +108,6 @@ namespace ImGuiFD {
 
     void SetFileDataCallback(RequestFileDataCallback loadCallB, FreeFileDataCallback unloadCallB);
 
-    
-
     void GetFileDialog(const char* str_id, const char* filter, const char* path, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
 
     void OpenDialog(const char* str_id, ImGuiFDMode mode, const char* path, const char* filter = NULL, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
@@ -114,7 +119,7 @@ namespace ImGuiFD {
     void EndDialog();
 
     bool ActionDone(); // was Open/Cancel (=> anything) pressed?
-    bool SelectionMade(); // was Open and not Cancel pressed?
+    bool SelectionMade(); // was Open (and not Cancel) pressed?
     const char* GetResultStringRaw();
     size_t GetSelectionStringsAmt();
     const char* GetSelectionNameString(size_t ind);
