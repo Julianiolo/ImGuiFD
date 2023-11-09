@@ -168,7 +168,6 @@ namespace ImGuiFD {
 				}
 				path = Native::makePathStrOSComply(path.c_str());
 				out.push_back({ getFileName(path.c_str()),path});
-				last = i+1;
 			}
 
 			return out;
