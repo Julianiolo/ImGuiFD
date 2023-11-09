@@ -1793,13 +1793,13 @@ ImGuiFD::FDInstance::FDInstance(const char* str_id) : str_id(str_id), id(ImHashS
 void ImGuiFD::FDInstance::OpenDialog(ImGuiFDMode mode, const char* path, const char* filter, ImGuiFDDialogFlags flags, size_t maxSelections) {
 	ImGuiFD::OpenDialog(str_id.c_str(), mode, path, filter, flags, maxSelections);
 }
-bool ImGuiFD::FDInstance::Begin() {
+bool ImGuiFD::FDInstance::Begin() const {
 	return ImGuiFD::BeginDialog(id);
 }
-void ImGuiFD::FDInstance::End() {
+void ImGuiFD::FDInstance::End() const {
 	ImGuiFD::EndDialog();
 }
-void ImGuiFD::FDInstance::DrawDialog(void (*callB)(void* userData), void* userData) {
+void ImGuiFD::FDInstance::DrawDialog(void (*callB)(void* userData), void* userData) const {
 	if(Begin()) {
 		if(ImGuiFD::ActionDone()) {
 			if(ImGuiFD::SelectionMade()) {
