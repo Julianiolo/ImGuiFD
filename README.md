@@ -1,5 +1,5 @@
 # ImGuiFD
-A Dear ImGui based File Dialog without any extra dependencies (exept dirent.h for windows) (not even STL!).
+A Dear ImGui based File Dialog without any extra dependencies (not even STL!).
 
 ## Usage
 ImGui like design:
