@@ -200,11 +200,23 @@ namespace ds {
 		inline size_t len() const {
 			return data.size() > 0 ? (data.size()-1) : 0;
 		}
+		inline size_t size() const {
+			return len();
+		}
 		inline size_t capacity() const {
 			return data.capacity();
 		}
 
-		inline char operator[](ptrdiff_t off) const {
+		inline void resize(size_t s) {
+			data.resize(s + 1);
+		}
+
+
+		inline char& operator[](ptrdiff_t off) {
+			size_t ind = off >= 0 ? off : len() + off;
+			return data[ind];
+		}
+		inline const char& operator[](ptrdiff_t off) const {
 			size_t ind = off >= 0 ? off : len() + off;
 			return data[ind];
 		}
@@ -685,8 +697,8 @@ namespace ds {
 
 namespace ImGuiFD {
 	struct FDInstance {
-		const ds::string str_id;
-        const ImGuiID id;
+		ds::string str_id;
+        ImGuiID id;
 
         FDInstance(const char* str_id);
 
@@ -721,7 +733,7 @@ namespace ImGuiFD {
 		ds::string getAbsolutePath(const char* path);
 		bool isValidDir(const char* dir);
 
-		ds::vector<DirEntry> loadDirEnts(const char* path, bool* success = 0, int (*compare)(const void* a, const void* b) = 0);
+		ds::vector<DirEntry> loadDirEnts(const char* path, bool* success = 0);
 		bool fileExists(const char* path);
 
 		bool rename(const char* name, const char* newName);

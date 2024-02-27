@@ -2,11 +2,9 @@
 #include "ImGuiFD_internal.h"
 
 #include <stdint.h>
-
+#include <sys/stat.h>
 
 #if defined(_WIN32)
-	#include "dependencies/dirent/include/dirent.h"
-
 	#define WIN32_LEAN_AND_MEAN
 	#include <windows.h>
 
@@ -17,7 +15,6 @@
 	#include <dirent.h>
 	#include <stdlib.h>
 	#include <limits.h>
-	#include <sys/stat.h>
 
 	#define GETCWD getcwd
 	#define GETABS realpath
@@ -28,27 +25,33 @@
 #endif
 
 
-ds::string ImGuiFD::Native::getAbsolutePath(const char* path) {
-	size_t len = strlen(path);
-	if (len == 1 && path[0] == '/')
+ds::string ImGuiFD::Native::getAbsolutePath(const char* path_) {
+	if (strlen(path_) == 1 && path_[0] == '/')
 		return "/";
 
-	if (len == 0)
+	ds::string path = makePathStrOSComply(path_);
+
+	if (path.size() == 0)
 		path = ".";
 
+	
 #ifdef _WIN32
-	if (*path == '/')
-		path++;
+	ds::string out;
+	out.resize(1024);
+	DWORD ret = GetFullPathNameA(path.c_str(), out.size(), &out[0], NULL);
+	if (ret == 0) return "?";
+	if (ret > out.size()) {
+		out.resize(ret);
+		ret = GetFullPathNameA(path.c_str(), out.size(), &out[0], NULL);
+		if (ret == 0 || ret > out.size()) return "?";
+	}
+#else
+	char* out_ = realpath(path, NULL);
+	if (out_ == NULL) return "?";
+	ds::string out(out_);
+	free(out_);
 #endif
 
-	ds::string out;
-	out.data.resize(MAX_PATH_LEN + 1);
-#ifdef _WIN32
-	_fullpath(out.data.Data, path, MAX_PATH_LEN);
-#else
-	realpath(path, out.data.Data);
-#endif
-	
 	return out;
 }
 
@@ -96,107 +99,133 @@ static void statDirEnt(ImGuiFD::DirEntry* entry) {
 #endif
 }
 
-static void setupDirEnt(ImGuiFD::DirEntry* entry, ImGuiID id, const dirent* de, const char* dir_) {
-	entry->id = id;
-	entry->name = ImStrdup(de->d_name);
-	entry->dir = ImStrdup(dir_);
-	entry->isFolder = de->d_type == DT_DIR;
-	{
-		ds::string tmp = entry->dir;
-		if (tmp[-1] != '/')
-			tmp += "/";
-		tmp += entry->name;
+static char* combinePath(const char* dir, const char* fname, bool isFolder) {
+	const size_t dir_len = strlen(dir);
+	const size_t fname_len = strlen(fname);
+	char* out = (char*)IM_ALLOC(dir_len+1+fname_len+1+1);
+	IM_ASSERT(out);
+	strcpy(out, dir);
+	if (dir_len > 0 && dir[dir_len - 1] != '/')
+		strcat(out, "/");
+	strcat(out, fname);
+	if(isFolder)
+		strcat(out, "/");
+	return out;
+}
 
-		if (entry->isFolder)
-			tmp += "/";
-
-		entry->path = ImStrdup(tmp.c_str());
-	}
+ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path_, bool* success) {
+	*success = false;
 	
-	statDirEnt(entry);
-}
-
-static int alphaSortEx(const void* a, const void* b) {
-	const dirent** a_ = (const dirent**)a;
-	const dirent** b_ = (const dirent**)b;
-	if (ImGuiFD::settings.showDirFirst) {
-		if (a_[0]->d_type == DT_DIR && b_[0]->d_type != DT_DIR)
-			return -1;
-		if (a_[0]->d_type != DT_DIR && b_[0]->d_type == DT_DIR)
-			return 1;
-	}
-	return ::alphasort(a_, b_);
-}
-
-ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path, bool* success, int (*compare)(const void* a, const void* b)) {
-	if (compare == 0)
-		compare = alphaSortEx;
+	ds::string path = makePathStrOSComply(path_);
 
 	ds::vector<DirEntry> entrys;
-	entrys.clear();
+
+	auto hash = ImHashStr(path_);
 
 #ifdef _WIN32
-	if (strlen(path) == 1 && path[0] == '/') {
-		char buf[512];
+	if (strcmp(path_, "/") == 0) {
+		char buf[1024];
 		int byteLen = GetLogicalDriveStringsA(sizeof(buf), buf);
-		if (byteLen > 0) {
-			*success = true;
-			size_t off = 0;
-			ImGuiID id = 0;
-			while (buf[off] != 0) {
-				entrys.push_back(DirEntry());
-				auto& entry = entrys.back();
-
-				ds::string name = ds::string(buf + off);
-				while (name.len() > 0 && name[-1] == '\\')
-					name = name.substr(0, -1);
-				
-				entry.name = ImStrdup(name.c_str());
-				entry.dir = ImStrdup("/");
-				entry.path = ImStrdup((ds::string("/") + entry.name + "/").c_str());
-
-				entry.isFolder = true;
-				entry.id = id;
-
-				statDirEnt(&entry);
-				
-				off += strlen(buf+off)+1;
-				id++;
-			}
-		}
-		else {
+		if (byteLen <= 0) {
 			*success = false;
+			return entrys;
 		}
 
-		return entrys;
-	}
-
-	if (*path == '/')
-		path++;
-#endif
-
-	dirent** namelist = 0; // pointer for array of dirent*
-	int numRead = scandir(path, &namelist, 0, (int (*)(const dirent**,const dirent**))compare);
-	//IM_ASSERT(namelist != 0); // check if scandir() put something into namelist
-
-	if (namelist != NULL && numRead >= 0) {
 		*success = true;
-		auto hash = ImHashStr(path);
-		for (int i = 0; i<numRead; i++) {
-			IM_ASSERT(namelist[i] != NULL);
-			if (namelist[i]->d_name[0] != '.' || (strcmp(namelist[i]->d_name,".") != 0 && strcmp(namelist[i]->d_name,"..") != 0)) {
-				entrys.push_back(DirEntry());
-				setupDirEnt(&entrys.back(), (hash<<16)+i, namelist[i], path);
-			}
-			free(namelist[i]);
+		size_t off = 0;
+		ImGuiID id = 0;
+		while (buf[off] != 0) {
+			entrys.push_back(DirEntry());
+			auto& entry = entrys.back();
+
+			ds::string name = ds::string(buf + off);
+			while (name.len() > 0 && name[-1] == '\\')
+				name = name.substr(0, -1);
+
+			entry.name = ImStrdup(name.c_str());
+			entry.dir = ImStrdup("/");
+			entry.path = ImStrdup((ds::string("/") + entry.name + "/").c_str());
+
+			entry.isFolder = true;
+			entry.id = id;
+
+			statDirEnt(&entry);
+
+			off += strlen(buf+off)+1;
+			id++;
 		}
-		free(namelist);
 	}
 	else {
-		// couldnt read directory
-		*success = false;
+		WIN32_FIND_DATAA fdata;
+		HANDLE findH = FindFirstFileA((path+"/*").c_str(), &fdata);
+		if (findH == INVALID_HANDLE_VALUE) {  // error
+			return {};
+		}
+
+		size_t i = 0;
+		do {
+			if (strcmp(fdata.cFileName, ".") == 0 || strcmp(fdata.cFileName, "..") == 0) continue;
+
+			entrys.push_back(DirEntry());
+			DirEntry* entry = &entrys.back();
+			entry->id = (hash<<16)+i;
+			entry->name = ImStrdup(fdata.cFileName);
+			entry->dir = ImStrdup(path.c_str());
+			entry->isFolder = !!(fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+			entry->path = combinePath(entry->dir, entry->name, entry->isFolder);
+			statDirEnt(entry);
+
+			i++;
+		} while (FindNextFileA(findH, &fdata) != 0);
+
+		if (GetLastError() != ERROR_NO_MORE_FILES) {
+			FindClose(findH);
+			return {};
+		}
+
+		FindClose(findH);
 	}
+#else
+
+	dirent** namelist = 0; // pointer for array of dirent*
+	const int numRead = scandir(path, &namelist, 0, ::alphasort);
+
+	if (namelist == NULL || numRead < 0) // couldn't read directory
+		return entrys;
+
 	
+	for (int i = 0; i<numRead; i++) {
+		dirent* de = namelist[i];
+		IM_ASSERT(de != NULL);
+		if (de->d_name[0] != '.' || (strcmp(de->d_name,".") != 0 && strcmp(de->d_name,"..") != 0)) {
+			entrys.push_back(DirEntry());
+			DirEntry* entry = &entrys.back();
+			entry->id = (hash<<16)+i;
+			entry->name = ImStrdup(de->d_name);
+			entry->dir = ImStrdup(path.c_str());
+			entry->isFolder = de->d_type == DT_DIR;
+			entry->path = combinePath(entry->dir, entry->name, entry->isFolder);
+
+			statDirEnt(entry);
+		}
+		free(namelist[i]);
+	}
+	free(namelist);
+#endif
+
+	qsort(&entrys[0], entrys.size(), sizeof(entrys[0]), [](const void* a_, const void* b_) {
+		const DirEntry* a = (const DirEntry*)a_;
+		const DirEntry* b = (const DirEntry*)b_;
+		if (ImGuiFD::settings.showDirFirst) {
+			if (a->isFolder && !b->isFolder)
+				return -1;
+			if (!a->isFolder && b->isFolder)
+				return 1;
+		}
+		return strcmp(a->name, b->name);
+	});
+	
+	*success = true;
 	return entrys;
 }
 
@@ -213,7 +242,7 @@ bool ImGuiFD::Native::isValidDir(const char* dir) {
 bool ImGuiFD::Native::makeFolder(const char* path) {
 	int status;
 #if defined(_MSC_VER) || defined(__MINGW32__)
-	status = _mkdir(path+1); // +1 to remove / from beginning of path
+	status = _mkdir(makePathStrOSComply(path).c_str());
 #else
 	status = mkdir(path, S_IRWXU);
 #endif
