@@ -1770,9 +1770,9 @@ ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(const DirEntry& src) {
 	return *this;
 }
 ImGuiFD::DirEntry::~DirEntry() {
-	if (name) IM_FREE((void*)name);
-	if (dir)  IM_FREE((void*)dir );
-	if (path) IM_FREE((void*)path);
+	IM_FREE((void*)name);
+	IM_FREE((void*)dir );
+	IM_FREE((void*)path);
 }
 
 uint64_t ImGuiFD::FileData::getSize() const {
