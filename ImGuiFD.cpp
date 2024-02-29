@@ -68,7 +68,7 @@ namespace ImGuiFD {
 					ind++;
 				}
 
-				out.data.resize(len + 1);
+				out.resize(len);
 			}
 
 			size_t ind = 0;
@@ -83,20 +83,20 @@ namespace ImGuiFD {
 				{
 					if (!lastWasSlash) {
 						lastWasSlash = true;
-						out.data[indOut++] = c;
+						out[indOut++] = c;
 					}
 					break;
 				}
 				default:
 					lastWasSlash = false;
-					out.data[indOut++] = c;
+					out[indOut++] = c;
 					break;
 				}
 				ind++;
 			}
-			out.data[indOut] = 0;
+			out[indOut] = 0;
 
-			if (out[out.len() - 1] != '/') {
+			if (out[out.size() - 1] != '/') {
 				out += "/";
 			}
 
@@ -177,14 +177,14 @@ namespace ImGuiFD {
 			ds::string* str = (ds::string*)data->UserData;
 
 			if (data->EventFlag == ImGuiInputTextFlags_CallbackResize) {
-				str->data.resize(data->BufTextLen+1);
+				str->resize(data->BufTextLen);
 				data->Buf = (char*)str->c_str();
 			}
 			return 0;
 		}
 		bool InputTextString(const char* label, const char* hint, ds::string* str, ImGuiInputTextFlags flags = 0, const ImVec2& size = { 0,0 }) {
 			return ImGui::InputTextEx(
-				label, hint, (char*)str->c_str(), (int)str->data.capacity(), 
+				label, hint, (char*)str->c_str(), (int)str->capacity(), 
 				size, flags | ImGuiInputTextFlags_CallbackResize, TextCallBack, str
 			);
 		}
@@ -314,10 +314,10 @@ namespace ImGuiFD {
 			for (size_t i = 0; i < parts.size(); i++) {
 				if (i > 0)
 					len++; // +1 len for '/'
-				len += parts[i].len();
+				len += parts[i].size();
 			}
 			ds::string out;
-			out.data.reserve(len+1);
+			out.reserve(len);
 			if(parts.size() == 1 && parts[0] == "/") {
 				out = "/";
 			}
@@ -353,23 +353,23 @@ namespace ImGuiFD {
 						const char* colPos = strchr(cmd.c_str(), ':');
 						if (colPos != nullptr) {
 							name = cmd.substr(0, colPos - cmd.c_str());
-							cmd = cmd.substr(colPos - cmd.c_str() + 1, cmd.len());
+							cmd = cmd.substr(colPos - cmd.c_str() + 1, cmd.size());
 						}
 					}
 
-					cmd = cmd.replace(" ", "");
+					cmd = ds::replace(cmd.c_str(), " ", "");
 
 					if (cmd[0] == '=') {
-						exact = cmd.substr(1, cmd.len());
+						exact = cmd.substr(1, cmd.size());
 					}
 					else if (cmd[0] == '!') {
-						exclude = cmd.substr(1, cmd.len());
+						exclude = cmd.substr(1, cmd.size());
 					}
 					else {
 						const char* dotPos = strrchr(cmd.c_str(), '.');
 						if (dotPos != NULL) {
 							fileName = cmd.substr(0, dotPos - cmd.c_str());
-							fileExt = cmd.substr(dotPos - cmd.c_str() + 1, cmd.len());
+							fileExt = cmd.substr(dotPos - cmd.c_str() + 1, cmd.size());
 
 							if (fileName == "*")
 								fileName = "";
@@ -383,28 +383,28 @@ namespace ImGuiFD {
 				}
 
 				bool passes(const char* str) {
-					if (exact.len() > 0 && exact != str)
+					if (exact.size() > 0 && exact != str)
 						return false;
 
-					if (include.len() > 0 && strstr(str, include.c_str()) == NULL)
+					if (include.size() > 0 && strstr(str, include.c_str()) == NULL)
 						return false;
 
-					if (exclude.len() > 0 && strstr(str, exclude.c_str()) != NULL)
+					if (exclude.size() > 0 && strstr(str, exclude.c_str()) != NULL)
 						return false;
 
 					{
 						const char* dotPos = strrchr(str, '.');
 						if (dotPos == NULL) {
-							if (fileExt.len() > 0)
+							if (fileExt.size() > 0)
 								return false;
-							if (fileName.len() > 0 && fileName != str)
+							if (fileName.size() > 0 && fileName != str)
 								return false;
 						}
 						else {
-							if (fileExt.len() > 0 && fileExt != (dotPos+1))
+							if (fileExt.size() > 0 && fileExt != (dotPos+1))
 								return false;
 
-							if (fileName.len() > 0 && strncmp(fileName.c_str(), str, fileName.len() < (size_t)(dotPos - str) ? fileName.len() : (dotPos - str)) != 0)
+							if (fileName.size() > 0 && strncmp(fileName.c_str(), str, fileName.size() < (size_t)(dotPos - str) ? fileName.size() : (dotPos - str)) != 0)
 								return false;
 						}
 
@@ -420,14 +420,14 @@ namespace ImGuiFD {
 			
 			Filter(const ds::string& cmd) : rawStr(cmd) {
 				size_t last = 0;
-				for (size_t i = 0; i < cmd.len(); i++) {
+				for (size_t i = 0; i < cmd.size(); i++) {
 					if (cmd[i] == ',' && i>last) {
 						filters.push_back(SubFilter(cmd.substr(last, i)));
 						last = i + 1;
 					}
 				}
-				if (last != cmd.len()) {
-					filters.push_back(SubFilter(cmd.substr(last, cmd.len())));
+				if (last != cmd.size()) {
+					filters.push_back(SubFilter(cmd.substr(last, cmd.size())));
 				}
 			}
 
@@ -482,7 +482,7 @@ namespace ImGuiFD {
 		}
 
 		bool passes(const char* name, bool isFolder) {
-			if (searchText.len() > 0) {
+			if (searchText.size() > 0) {
 				Filter searchFilter(searchText);
 				if (!searchFilter.passes(name))
 					return false;
@@ -624,7 +624,7 @@ namespace ImGuiFD {
 				globalSortData = &data;
 
 				if(dataModed.size() > 1)
-					qsort(dataModed.begin(), dataModed.size(), sizeof(dataModed[0]), compareSortSpecs);
+					qsort(&dataModed[0], dataModed.size(), sizeof(dataModed[0]), compareSortSpecs);
 				
 				globalSortSpecs = 0;
 				globalSortData = 0;
@@ -1623,7 +1623,7 @@ namespace ImGuiFD {
 			//for (auto& id : fd->selected) {
 			//	
 			//}
-			return fd->inputText.len() > 0;
+			return fd->inputText.size() > 0;
 		}
 		else if (fd->isDirMode()) {
 			return true;
@@ -1811,7 +1811,7 @@ void ImGuiFD::FDInstance::DrawDialog(void (*callB)(void* userData), void* userDa
 	}
 }
 size_t ImGuiFD::FDInstance::sizeBytes() const {
-	return str_id.size_bytes() + sizeof(id);
+	return ds::size_bytes(str_id) + sizeof(id);
 }
 
 

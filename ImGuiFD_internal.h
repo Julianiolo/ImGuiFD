@@ -7,15 +7,26 @@
 
 #ifdef IMGUIFD_ENABLE_STL
 #include <functional>
+#include <vector>
+#include <string>
 #endif
 
 namespace ds {
+#ifdef IMGUIFD_ENABLE_STL
 	template<typename T>
-	struct vector{
+	using vector = std::vector<T>;
+
+	using string = std::string;
+	template<typename T1, typename T2>
+	using pair = std::pair<T1, T2>;
+#else
+	template<typename T>
+	class vector{
+	private:
 		size_t              Size;
 		size_t              Capacity;
 		T*                  Data;
-
+	public:
 		// Provide standard typedefs but we don't use them ourselves.
 		typedef T                   value_type;
 		typedef value_type*         iterator;
@@ -24,6 +35,13 @@ namespace ds {
 		// Constructors, destructor
 		inline vector()                                         { Size = Capacity = 0; Data = NULL; }
 		inline vector(const vector<T>& src)                     { Size = Capacity = 0; Data = NULL; operator=(src); }
+		inline vector(vector<T>&& src) noexcept { 
+			Size = src.Size; 
+			Capacity = src.Capacity;
+			Data = src.Data;
+			src.Data = NULL;
+			src.clear();
+		}
 		inline vector(size_t size_) { 
 			Size = Capacity = 0; 
 			Data = NULL; 
@@ -33,8 +51,8 @@ namespace ds {
 			Size = Capacity = 0; 
 			Data = NULL; 
 			resize(size_); 
-			for (size_t i = 0; i < size_; i++) 
-				this->operator[](i) = def; 
+			for (size_t i = 0; i < size_; i++)
+				this->operator[](i) = def;
 		}
 		inline vector<T>& operator=(const vector<T>& src)       { 
 			clear(); 
@@ -42,17 +60,20 @@ namespace ds {
 			Size = src.Size;
 			for(size_t i = 0; i<src.Size;i++) 
 				IM_PLACEMENT_NEW(&Data[i]) T(src.Data[i]); 
-			return *this; 
+			return *this;
 		}
-		inline ~vector()                                        { 
-			if (Data) { 
-				for (size_t n = 0; n < Size; n++) 
-					Data[n].~T();
-				IM_FREE(Data); 
-			} 
+		inline ~vector() {
+			clear();
 		}
 
-		inline void         clear()                             { if (Data) { for (size_t n = 0; n < Size; n++) Data[n].~T(); Size = Capacity = 0; IM_FREE(Data); Data = NULL; } }
+		inline void         clear()                             { 
+			if (Data) { 
+				for (size_t n = 0; n < Size; n++) 
+					Data[n].~T(); 
+				Size = Capacity = 0; 
+				IM_FREE(Data); Data = NULL; 
+			} 
+		}
 
 		inline bool         empty() const                       { return Size == 0; }
 		inline size_t       size() const                        { return Size; }
@@ -188,7 +209,7 @@ namespace ds {
 		}
 
 		inline const char* c_str() const {
-			return data.Data;
+			return &data[0];
 		}
 
 		inline string substr(ptrdiff_t from, ptrdiff_t to) const {
@@ -239,26 +260,6 @@ namespace ds {
 			return out;
 		}
 
-		inline string replace(const char* find, const char* replace) {
-			string out;
-
-			const size_t findLen = strlen(find);
-
-			size_t nextOcc = strstr(c_str(), find) - c_str();
-			for (size_t i = 0; i < len(); i++) {
-				if (nextOcc == i) {
-					out += replace;
-					i += findLen - 1;
-					nextOcc = strstr(c_str() + i + 1, find) - c_str();
-					continue;
-				}
-
-				out += (*this)[i];
-			}
-			
-			return out;
-		}
-
 		inline bool operator==(const ds::string& s) const {
 			return strcmp(c_str(), s.c_str()) == 0;
 		}
@@ -277,6 +278,32 @@ namespace ds {
 			return data.size_bytes();
 		}
 	};
+#endif
+
+	size_t size_bytes(const ds::string& s) {
+		return sizeof(s) + s.size();
+	}
+
+	inline string replace(const char* str, const char* find, const char* replace) {
+		string out;
+
+		const size_t strLen = strlen(str);
+		const size_t findLen = strlen(find);
+
+		size_t nextOcc = strstr(str, find) - str;
+		for (size_t i = 0; i < strLen; i++) {
+			if (nextOcc == i) {
+				out += replace;
+				i += findLen - 1;
+				nextOcc = strstr(str + i + 1, find) - str;
+				continue;
+			}
+
+			out += str[i];
+		}
+
+		return out;
+	}
 
 	template<typename T>
 	class map {
