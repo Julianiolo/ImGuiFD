@@ -4,8 +4,8 @@
 #define IMGUIFD_VERSION "0.1 alpha"
 #define IMGUIFD_VERSION_NUM 0
 
-// uncomment or define before including this for stl support
-//#define IMGUIFD_ENABLE_STL 1
+// uncomment this for stl support
+#define IMGUIFD_ENABLE_STL 1
 
 
 #ifdef _MSC_VER
