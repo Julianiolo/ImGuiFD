@@ -46,7 +46,7 @@ ds::string ImGuiFD::Native::getAbsolutePath(const char* path_) {
 		if (ret == 0 || ret > out.size()) return "?";
 	}
 #else
-	char* out_ = realpath(path, NULL);
+	char* out_ = realpath(path.c_str(), NULL);
 	if (out_ == NULL) return "?";
 	ds::string out(out_);
 	free(out_);
@@ -201,7 +201,7 @@ ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path_, bo
 #else
 
 	dirent** namelist = 0; // pointer for array of dirent*
-	const int numRead = scandir(path, &namelist, 0, ::alphasort);
+	const int numRead = scandir(path.c_str(), &namelist, 0, ::alphasort);
 
 	if (namelist == NULL || numRead < 0) // couldn't read directory
 		return entrys;
