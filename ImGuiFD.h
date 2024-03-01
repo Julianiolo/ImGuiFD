@@ -5,7 +5,7 @@
 #define IMGUIFD_VERSION_NUM 0
 
 // uncomment this for stl support
-#define IMGUIFD_ENABLE_STL 1
+//#define IMGUIFD_ENABLE_STL 1
 
 
 #ifdef _MSC_VER

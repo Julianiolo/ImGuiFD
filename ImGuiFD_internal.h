@@ -9,6 +9,7 @@
 #include <functional>
 #include <vector>
 #include <string>
+#include <iterator>
 #endif
 
 namespace ds {
@@ -66,7 +67,7 @@ namespace ds {
 			clear();
 		}
 
-		inline void         clear()                             { 
+		inline void clear()                             { 
 			if (Data) { 
 				for (size_t n = 0; n < Size; n++) 
 					Data[n].~T(); 
@@ -121,7 +122,7 @@ namespace ds {
 					Data[i].~T();
 				}
 				IM_FREE(Data);
-			} 
+			}
 			Data = new_data; 
 			Capacity = new_capacity;
 		}
@@ -177,10 +178,6 @@ namespace ds {
 		inline const T*     find(const T& v) const              { const T* data = Data;  const T* data_end = Data + Size; while (data < data_end) if (*data == v) break; else ++data; return data; }
 		inline bool         find_erase(const T& v)              { const T* it = find(v); if (it < Data + Size) { erase(it); return true; } return false; }
 		inline size_t       index_from_ptr(const T* it) const   { IM_ASSERT(it >= Data && it < Data + Size); const ptrdiff_t off = it - Data; return (size_t)off; }
-
-		inline size_t       size_bytes() const {
-			return sizeof(Size) + sizeof(Capacity) + sizeof(Data) + Capacity * sizeof(T);
-		}
 	};
 
 	template<typename T0, typename T1>
@@ -231,15 +228,16 @@ namespace ds {
 		inline void resize(size_t s) {
 			data.resize(s + 1);
 		}
-
-
-		inline char& operator[](ptrdiff_t off) {
-			size_t ind = off >= 0 ? off : len() + off;
-			return data[ind];
+		inline void reserve(size_t s) {
+			data.reserve(s + 1);
 		}
-		inline const char& operator[](ptrdiff_t off) const {
-			size_t ind = off >= 0 ? off : len() + off;
-			return data[ind];
+
+
+		inline char& operator[](size_t off) {
+			return data[off];
+		}
+		inline const char& operator[](size_t off) const {
+			return data[off];
 		}
 
 		inline string& operator+=(const ds::string& s) {
@@ -285,14 +283,10 @@ namespace ds {
 		inline bool operator!=(const char* s) const {
 			return !(*this == s);
 		}
-
-		inline size_t size_bytes() const {
-			return data.size_bytes();
-		}
 	};
 #endif
 
-	size_t size_bytes(const ds::string& s) {
+	inline size_t size_bytes(const ds::string& s) {
 		return sizeof(s) + s.size();
 	}
 
@@ -317,66 +311,93 @@ namespace ds {
 		return out;
 	}
 
+	// find value, if not found return (size_t)-1; compare needs to be a function like object with (const T& a, size_t ind_of_b) -> int
+	template<typename T,typename CMP>
+	inline size_t binarySearchExclusive(size_t len, const T& value, const CMP& compare) {
+		if (len == 0)
+			return (size_t)-1;
+
+		size_t from = 0;
+		size_t to = len-1;
+		while (from != to) {
+			size_t mid = from + (to-from) / 2;
+
+			int cmp = compare(value, mid);
+
+			if (cmp == 0) {
+				return mid;
+			}
+			else if (cmp < 0) {
+				if (mid == to)
+					goto fail;
+				to = mid;
+			}
+			else {
+				if (mid == from)
+					goto fail;
+				from = mid;
+			}
+		}
+
+		if (compare(value, from) == 0)
+			return from;
+
+	fail:
+		return (size_t)-1;
+	}
+
+	// find value, if not found return where to insert it; compare needs to be a function like object with (const T& a, size_t ind_of_b) -> int
+	template<typename T,typename CMP>
+	inline size_t binarySearchInclusive(size_t len, const T& value, const CMP& compare) {
+		if (len == 0)
+			return 0;
+
+		size_t from = 0;
+		size_t to = len-1;
+		while (from < to) {
+			size_t mid = from + (to-from) / 2;
+
+			int cmp = compare(value, mid);
+
+			if (cmp == 0) {
+				return mid;
+			}
+			else if (cmp < 0) {
+				if (mid == to) {
+					return from;
+				}
+				to = mid;
+			}
+			else {
+				if (mid == from) {
+					return from;
+				}
+				from = mid;
+			}
+		}
+
+		return from;
+	}
+
 	template<typename T>
 	class map {
 	private:
 		vector<pair<ImGuiID, T>> data;
 
+		struct Comparer {
+			const map<T>& map;
+			int operator()(ImGuiID v, size_t ind) const {
+				ImGuiID o = map.data[ind].first;
+				if (v == o) return 0;
+				return v < o ? -1 : 1;
+			}
+		};
+
 		inline size_t getIndContains(const ImGuiID val) const {
-			if (data.Size == 0)
-				return (size_t)-1;
-
-			size_t from = 0, to = data.size();
-			while (from != to) {
-				size_t mid = from + (to - from) / 2;
-				const ImGuiID valMid = data[mid].first;
-				if (valMid > val) {
-					if (mid == to)
-						return (size_t)-1;
-					to = mid;
-				}
-				else if (valMid < val) {
-					if (mid == from)
-						return (size_t)-1;
-					from = mid;
-				}
-				else {
-					return mid;
-				}
-			}
-
-			if (data[from].first == val) {
-				return from;
-			}
-			else {
-				return (size_t)-1;
-			}
+			return binarySearchExclusive(data.size(), val, Comparer{ *this });
 		}
 		inline size_t getIndInsert(const ImGuiID val) const {
-			if (data.size() == 0)
-				return 0;
-
-			size_t from = 0, to = data.size();
-			while (from != to) {
-				size_t mid = from + (to - from) / 2;
-				const ImGuiID valMid = data[mid].first;
-
-				if (valMid > val) {
-					if (mid == to)
-						return from;
-					to = mid;
-				}
-				else if (valMid < val) {
-					if (mid == from)
-						return to;
-					from = mid;
-				}
-				else {
-					return mid;
-				}
-			}
-
-			return from;
+			return binarySearchInclusive(data.size(), val, Comparer{ *this });
 		}
 	public:
 
@@ -415,63 +436,24 @@ namespace ds {
 	template<typename T>
 	class set {
 	private:
-		vector<T> data;
+		using container = vector<T>;
+		container data;
+		using iterator = typename container::iterator;
+
+		struct Comparer {
+			const set<T>& set;
+			int operator()(const T& v, size_t ind) const {
+				const T& o = set.data[ind];
+				if (v == o) return 0;
+				return v < o ? -1 : 1;
+			}
+		};
 
 		inline size_t getIndContains(const T& val) const {
-			if (data.Size == 0)
-				return (size_t)-1;
-
-			size_t from = 0, to = data.size();
-			while (from != to) {
-				size_t mid = from + (to - from) / 2;
-				const T& valMid = data[mid];
-				if (valMid > val) {
-					if (mid == to)
-						return (size_t)-1;
-					to = mid;
-				}
-				else if (valMid < val) {
-					if (mid == from)
-						return (size_t)-1;
-					from = mid;
-				}
-				else {
-					return mid;
-				}
-			}
-
-			if (data[from] == val) {
-				return from;
-			}
-			else {
-				return (size_t)-1;
-			}
+			return binarySearchExclusive(data.size(), val, Comparer{ *this });
 		}
 		inline size_t getIndInsert(const T& val) const {
-			if (data.size() == 0)
-				return 0;
-
-			size_t from = 0, to = data.size();
-			while (from != to) {
-				size_t mid = from + (to - from) / 2;
-				const T& valMid = data[mid];
-
-				if (valMid > val) {
-					if (mid == to)
-						return from;
-					to = mid;
-				}
-				else if (valMid < val) {
-					if (mid == from)
-						return to;
-					from = mid;
-				}
-				else {
-					return mid;
-				}
-			}
-
-			return from;
+			return binarySearchInclusive(data.size(), val, Comparer{ *this });
 		}
 	public:
 
@@ -502,7 +484,7 @@ namespace ds {
 			return data.back();
 		}
 
-		inline void erase(T* ptr) {
+		inline void erase(iterator ptr) {
 			data.erase(ptr);
 		}
 		inline void eraseItem(const T& t) {
@@ -515,11 +497,11 @@ namespace ds {
 			data.clear();
 		}
 
-		inline T* begin() {
+		inline iterator begin() {
 			return data.begin();
 		}
 
-		inline T* end() {
+		inline iterator end() {
 			return data.end();
 		}
 	};
@@ -735,7 +717,7 @@ namespace ImGuiFD {
         void End() const;
 		
 		// for ease of use, not nescessary
-		void DrawDialog(void (*callB)(void* userData), void* userData) const;
+		void DrawDialog(void (*callB)(void* userData), void* userData = NULL) const;
 
 #ifdef IMGUIFD_ENABLE_STL
 		inline void DrawDialog(std::function<void(void)> callB) const {
