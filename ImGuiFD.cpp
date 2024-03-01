@@ -1510,11 +1510,12 @@ namespace ImGuiFD {
 							}
 							else {
 								const float textWidth = ImGui::CalcTextSize(fd->renameStr.c_str()).x + ImGui::GetStyle().FramePadding.x*2;
-								float inputWidth = textWidth < 70 ? 70 : textWidth;
+								const float inputWidth = textWidth < 70 ? 70 : textWidth;
 								ImGui::SetCursorPosX(ImGui::GetCursorPosX() + maxWidth / 2 - inputWidth / 2);
 								ImGui::SetKeyboardFocusHere();
 								if (utils::InputTextString("##renameInput", "New Name", &fd->renameStr, ImGuiInputTextFlags_EnterReturnsTrue, { inputWidth,0 })) {
 									ds::string path = fd->currentPath.toString();
+									IM_ASSERT(path[path.size() - 1] == '/');
 									bool success = Native::rename((path + entry.name).c_str(), (path + fd->renameStr).c_str());
 									if (success) {
 										fd->updateEntrys();
