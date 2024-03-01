@@ -200,7 +200,7 @@ namespace ImGuiFD {
 		DEIG_CREATION_DATE,
 	};
 
-	int customStrCmp(const char* strA, const char* strB) {
+	static int customStrCmp(const char* strA, const char* strB) {
 		while (true) {
 			char a = *strA++;
 			char b = *strB++;
@@ -227,7 +227,7 @@ namespace ImGuiFD {
 		}
 	}
 
-	int compareSortSpecs(const void* lhs, const void* rhs){
+	static int compareSortSpecs(const void* lhs, const void* rhs){
 		auto& a = (*globalSortData)[*(size_t*)lhs];
 		auto& b = (*globalSortData)[*(size_t*)rhs];
 
@@ -637,7 +637,7 @@ namespace ImGuiFD {
 					updateFiltering();
 			}
 
-			bool wasLoadedSuccesfully() {
+			bool wasLoadedSuccesfully() const {
 				return loadedSucessfully;
 			}
 		};
@@ -764,7 +764,7 @@ namespace ImGuiFD {
 			entrys.updateFiltering();
 		}
 
-		bool canUndo() {
+		bool canUndo() const {
 			return !undoStack.isEmpty();
 		}
 		void undo() {
@@ -776,7 +776,7 @@ namespace ImGuiFD {
 				needsEntrysUpdate = true;
 			}
 		}
-		bool canRedo() {
+		bool canRedo() const {
 			return !redoStack.isEmpty();
 		}
 		void redo() {
@@ -809,7 +809,7 @@ namespace ImGuiFD {
 	FileDialog* fd = 0;
 	ds::map<FileDialog> openDialogs;
 
-	ImRect TextWrappedCentered(const char* text, float maxWidth, int maxLines = -1) {
+	static ImRect TextWrappedCentered(const char* text, float maxWidth, int maxLines = -1) {
 		ImGuiContext& g = *GImGui;
 		ImVec2 cursorStart = ImGui::GetCursorPos();
 
@@ -869,7 +869,7 @@ namespace ImGuiFD {
 
 		return ImRect(minPos, maxPos);
 	}
-	bool ComboVertical(const char* str_id, size_t* v, const char** labels, size_t labelCnt, const ImVec2& size_arg = { 0,0 }) {
+	static bool ComboVertical(const char* str_id, size_t* v, const char** labels, size_t labelCnt, const ImVec2& size_arg = { 0,0 }) {
 		ImGui::PushID(str_id);
 
 		ImVec2 avail = ImGui::GetContentRegionAvail();
@@ -902,22 +902,22 @@ namespace ImGuiFD {
 		return changed;
 	}
 
-	void formatTime(char* buf, size_t bufSize, time_t unixTime) {
+	static void formatTime(char* buf, size_t bufSize, time_t unixTime) {
 		tm* tm = localtime(&unixTime);
 		strftime(buf, bufSize, "%d.%m.%y %H:%M", tm);
 	}
-	void formatSize(char* buf, size_t bufSize, uint64_t size) {
+	static void formatSize(char* buf, size_t bufSize, uint64_t size) {
 		snprintf(buf, bufSize, "%" PRIu64 " Bytes", size);
 	}
 
-	void OpenNow() {
+	static void OpenNow() {
 		fd->inputStrs = utils::splitInput(fd->inputText.c_str(), fd->currentPath.toString().c_str());
 
 		fd->actionDone = true;
 		fd->selectionMade = true;
 	}
 
-	void ClickedOnEntrySelect(size_t id, bool isSel, bool isFolder) {
+	static void ClickedOnEntrySelect(size_t id, bool isSel, bool isFolder) {
 		if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
 			return;
 		if (fd->mode == ImGuiFDMode_OpenDir && !isFolder)
@@ -958,7 +958,7 @@ namespace ImGuiFD {
 			if (!isSel) {
 				fd->selected.add(id);
 
-				// if too many selected delete the earlier selected ones
+				// if too many selected: delete the earlier selected ones
 				if (fd->selected.size() > fd->maxSelections)
 					fd->selected.erase(fd->selected.begin());
 			}
@@ -970,7 +970,7 @@ namespace ImGuiFD {
 		fd->setInputTextToSelected();
 		fd->resetRename();
 	}
-	void CheckDoubleClick(const DirEntry& entry) {
+	static void CheckDoubleClick(const DirEntry& entry) {
 		if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
 			if (entry.isFolder) {
 				fd->dirMoveDownInto(entry.name);
@@ -984,7 +984,7 @@ namespace ImGuiFD {
 		}
 	}
 	
-	void DrawSettings() {
+	static void DrawSettings() {
 		ImGui::Checkbox("Show dir first", &settings.showDirFirst);
 		ImGui::Checkbox("Adjust icon width", &settings.adjustIconWidth);
 
@@ -1004,7 +1004,7 @@ namespace ImGuiFD {
 	}
 
 
-	void DrawContorls() {
+	static void DrawContorls() {
 		bool canUndo = fd->canUndo();
 		if(!canUndo) ImGui::BeginDisabled();
 		if (ImGui::Button("<")) {
@@ -1028,7 +1028,7 @@ namespace ImGuiFD {
 			fd->dirGoUp();
 		}
 	}
-	void DrawDirBar() {
+	static void DrawDirBar() {
 		const float width = ImGui::GetContentRegionAvail().x;
 		if (width <= 0) {
 			ImGui::Dummy(ImVec2(0, 0)); // dummy to reset SameLine();
@@ -1164,7 +1164,7 @@ namespace ImGuiFD {
 		// draw border
 		ImGui::GetWindowDrawList()->AddRect(recOuter.Min, recOuter.Max, ImColor(ImGui::GetStyleColorVec4(ImGuiCol_Border)));
 	}
-	void DrawNavigation() {
+	static void DrawNavigation() {
 		ImGuiStyle& style = ImGui::GetStyle();
 
 		DrawContorls();
@@ -1195,7 +1195,7 @@ namespace ImGuiFD {
 		}
 	}
 
-	void DrawDirFiles_TableRow(size_t row) {
+	static void DrawDirFiles_TableRow(size_t row) {
 		auto& entry = fd->entrys.get(row);
 		size_t ind = fd->entrys.getActualIndex(row);
 
@@ -1240,7 +1240,7 @@ namespace ImGuiFD {
 		else
 			ImGui::Dummy({ 0,0 });
 	}
-	void DrawDirFiles_Table(float height) {
+	static void DrawDirFiles_Table(float height) {
 		if (height <= 0)
 			return;
 
@@ -1292,7 +1292,7 @@ namespace ImGuiFD {
 		);*/
 	}
 
-	void DrawDirFiles_IconsItemDesc(const DirEntry& entry) {
+	static void DrawDirFiles_IconsItemDesc(const DirEntry& entry) {
 		ImGui::PushStyleColor(ImGuiCol_Text, settings.descTextCol);
 
 		if (ImGui::BeginTable("ToolTipDescTable", 2)) {
@@ -1337,16 +1337,16 @@ namespace ImGuiFD {
 
 		ImGui::PopStyleColor();
 	}
-	void DrawDirFiles_Icons(float height) {
+	static void DrawDirFiles_Icons(float height) {
 		if (height <= 0)
 			return;
 
 		// calculating item sizes
 		const size_t numOfItems = fd->entrys.size();
 
-		float itemWidthRaw = settings.iconModeSize;
-		float itemHeight = itemWidthRaw * (3.0f / 4.0f);
-		ImVec2 padding(5,5);
+		const float itemWidthRaw = settings.iconModeSize;
+		const float itemHeight = itemWidthRaw * (3.0f / 4.0f);
+		const ImVec2 padding(5,5);
 
 		const float width = ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ScrollbarSize;
 
@@ -1396,14 +1396,14 @@ namespace ImGuiFD {
 						itemsInThisLine = numOfItems - itemsPerLine*(numOfLines-1);
 
 					for (size_t col = 0; col < itemsInThisLine; col++) {
-						size_t ind = row * itemsPerLineRaw + col;
+						const size_t ind = row * itemsPerLineRaw + col;
 
-						size_t id = fd->entrys.getInd(ind);
+						const size_t id = fd->entrys.getInd(ind);
 
 						ImGui::PushID((ImGuiID)ind);
 
 						auto& entry = fd->entrys.getRaw(id);
-						bool isSel = fd->selected.contains(id);
+						const bool isSel = fd->selected.contains(id);
 
 						ImVec2 cursorStart = totalCursorStart + ImVec2{(itemWidth+style.ItemSpacing.x*2)*col, (itemHeight+style.ItemSpacing.y*2)*row};
 						ImVec2 cursorEnd = cursorStart + ImVec2{itemWidth, itemHeight};
@@ -1522,6 +1522,12 @@ namespace ImGuiFD {
 									else {
 										// TODO
 									}
+									fd->resetRename();
+								}
+								else {
+									if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+										fd->resetRename();
+									}
 								}
 							}
 						}
@@ -1542,7 +1548,7 @@ namespace ImGuiFD {
 		ImGui::EndChild();
 	}
 
-	void DrawContextMenu() {
+	static void DrawContextMenu() {
 		bool openNewFolderPopup = false;
 		if (ImGui::BeginPopup("ContextMenu")) {
 			if (fd->selected.size() == 1) {
@@ -1595,7 +1601,7 @@ namespace ImGuiFD {
 		}
 	}
 
-	void DrawDirFiles() {
+	static void DrawDirFiles() {
 		float winHeight = ImGui::GetWindowContentRegionMax().y - ImGui::GetWindowContentRegionMin().y;
 		float height = winHeight - (ImGui::GetCursorPosY()-ImGui::GetCursorStartPos().y) - ImGui::GetFrameHeightWithSpacing() * (fd->hasFilter ? 2 : 1);
 		switch (settings.displayMode) {
@@ -1613,7 +1619,7 @@ namespace ImGuiFD {
 		DrawContextMenu();
 	}
 
-	bool canOpenNow() {
+	static bool canOpenNow() {
 		if (fd->isFileMode()) {
 			for (size_t i = 0; i < fd->selected.size(); i++) {
 				auto& entry = fd->getSelectedInd(i);
@@ -1632,14 +1638,14 @@ namespace ImGuiFD {
 			abort();
 		}
 	}
-	void DrawTextField() {
-		ImGuiStyle& style = ImGui::GetStyle();
+	static void DrawTextField() {
+		const ImGuiStyle& style = ImGui::GetStyle();
 
 		const char* openBtnStr = fd->mode == ImGuiFDMode_SaveFile ? "Save" : "Open";
 		const char* cancelBtnStr = "Cancel";
 		const float minBtnWidth = ImMin(100.0f, ImGui::GetContentRegionAvail().x/4);
 		const float btnWidht = ImMax(ImMax(ImGui::CalcTextSize(openBtnStr).x, ImGui::CalcTextSize(cancelBtnStr).x), minBtnWidth) + style.FramePadding.x*2;
-		float widthWOBtns = ImGui::GetContentRegionAvail().x - 2 * (btnWidht + ImGui::GetStyle().ItemSpacing.x);
+		const float widthWOBtns = ImGui::GetContentRegionAvail().x - 2 * (btnWidht + ImGui::GetStyle().ItemSpacing.x);
 
 		ImGui::PushItemWidth(-FLT_MIN);
 		// file name text input
@@ -1678,7 +1684,6 @@ namespace ImGuiFD {
 		ImGui::SameLine();
 
 		{
-
 			const bool canOpen = canOpenNow();
 
 			bool drawOpen = true;
@@ -1696,7 +1701,7 @@ namespace ImGuiFD {
 					bool done = true;
 
 					if (fd->mode == ImGuiFDMode_SaveFile) {
-						ds::string path = fd->currentPath.toString() + "/" + fd->inputText.substr(1,-1);
+						ds::string path = fd->currentPath.toString() + "/" + fd->inputText.substr(1, fd->inputText.size()-1);
 						if (Native::fileExists(path.c_str())) {
 							done = false;
 							ImGui::OpenPopup("Override File?");
@@ -1741,7 +1746,7 @@ namespace ImGuiFD {
 
 	
 
-	void CloseDialogID(ImGuiID id) {
+	static void CloseDialogID(ImGuiID id) {
 		if (openDialogs.contains(id))
 			openDialogs.getByID(id).toDelete = true;
 	}
@@ -1826,7 +1831,9 @@ void ImGuiFD::OpenDialog(const char* str_id, ImGuiFDMode mode, const char* path,
 		if (openDialogs.getByID(id).toDelete) {
 			openDialogs.erase(id);
 		}
-		return;
+		else {
+			return;
+		}
 	}
 #endif
 	openDialogs.insert(id, FileDialog(id, str_id, filter, path, mode, flags, maxSelections));

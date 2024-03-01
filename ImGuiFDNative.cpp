@@ -38,11 +38,11 @@ ds::string ImGuiFD::Native::getAbsolutePath(const char* path_) {
 #ifdef _WIN32
 	ds::string out;
 	out.resize(1024);
-	DWORD ret = GetFullPathNameA(path.c_str(), out.size(), &out[0], NULL);
+	DWORD ret = GetFullPathNameA(path.c_str(), (DWORD)out.size(), &out[0], NULL);
 	if (ret == 0) return "?";
 	if (ret > out.size()) {
 		out.resize(ret);
-		ret = GetFullPathNameA(path.c_str(), out.size(), &out[0], NULL);
+		ret = GetFullPathNameA(path.c_str(), (DWORD)out.size(), &out[0], NULL);
 		if (ret == 0 || ret > out.size()) return "?";
 	}
 #else
@@ -113,6 +113,19 @@ static char* combinePath(const char* dir, const char* fname, bool isFolder) {
 	return out;
 }
 
+static int cmpEntrys(const void* a_, const void* b_) {
+	const ImGuiFD::DirEntry* a = (const ImGuiFD::DirEntry*)a_;
+	const ImGuiFD::DirEntry* b = (const ImGuiFD::DirEntry*)b_;
+	if (ImGuiFD::settings.showDirFirst) {
+		if (a->isFolder && !b->isFolder)
+			return -1;
+		if (!a->isFolder && b->isFolder)
+			return 1;
+	}
+	return strcmp(a->name, b->name);
+}
+
+
 ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path_, bool* success) {
 	*success = false;
 	
@@ -139,8 +152,8 @@ ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path_, bo
 			auto& entry = entrys.back();
 
 			ds::string name = ds::string(buf + off);
-			while (name.len() > 0 && name[-1] == '\\')
-				name = name.substr(0, -1);
+			while (name.size() > 0 && name[name.size()-1] == '\\')
+				name = name.substr(0, name.size()-1);
 
 			entry.name = ImStrdup(name.c_str());
 			entry.dir = ImStrdup("/");
@@ -168,7 +181,7 @@ ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path_, bo
 
 			entrys.push_back(DirEntry());
 			DirEntry* entry = &entrys.back();
-			entry->id = (hash<<16)+i;
+			entry->id = (ImGuiID)((hash<<16)+i);
 			entry->name = ImStrdup(fdata.cFileName);
 			entry->dir = ImStrdup(path.c_str());
 			entry->isFolder = !!(fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
@@ -213,17 +226,8 @@ ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path_, bo
 	free(namelist);
 #endif
 
-	qsort(&entrys[0], entrys.size(), sizeof(entrys[0]), [](const void* a_, const void* b_) {
-		const DirEntry* a = (const DirEntry*)a_;
-		const DirEntry* b = (const DirEntry*)b_;
-		if (ImGuiFD::settings.showDirFirst) {
-			if (a->isFolder && !b->isFolder)
-				return -1;
-			if (!a->isFolder && b->isFolder)
-				return 1;
-		}
-		return strcmp(a->name, b->name);
-	});
+	if(entrys.size() > 1)
+		qsort(&entrys[0], entrys.size(), sizeof(entrys[0]), cmpEntrys);
 	
 	*success = true;
 	return entrys;
