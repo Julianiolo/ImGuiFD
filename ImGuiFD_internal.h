@@ -63,6 +63,17 @@ namespace ds {
 				IM_PLACEMENT_NEW(&Data[i]) T(src.Data[i]); 
 			return *this;
 		}
+		inline vector<T>& operator=(vector<T>&& src)       { 
+			clear();
+
+			Size = src.Size; 
+			Capacity = src.Capacity;
+			Data = src.Data;
+			src.Data = NULL;
+			src.clear();
+
+			return *this;
+		}
 		inline ~vector() {
 			clear();
 		}
@@ -73,7 +84,7 @@ namespace ds {
 					Data[n].~T(); 
 				Size = Capacity = 0; 
 				IM_FREE(Data); Data = NULL; 
-			} 
+			}
 		}
 
 		inline bool         empty() const                       { return Size == 0; }
@@ -194,8 +205,9 @@ namespace ds {
 
 	class string {
 	public:
+		static constexpr char null_char = '\0';
 		vector<char> data;
-		inline string() : data(1,0) {
+		inline string() {
 			
 		}
 		inline string(const char* s, const char* s_end = 0) : data((s_end ? (s_end-s) : strlen(s))+1) {
@@ -206,7 +218,7 @@ namespace ds {
 		}
 
 		inline const char* c_str() const {
-			return &data[0];
+			return data.size() == 0 ? &null_char : &data[0];
 		}
 
 		inline string substr(ptrdiff_t from, ptrdiff_t to) const {
@@ -234,9 +246,11 @@ namespace ds {
 
 
 		inline char& operator[](size_t off) {
+			IM_ASSERT(off < data.size());
 			return data[off];
 		}
 		inline const char& operator[](size_t off) const {
+			IM_ASSERT(off < data.size());
 			return data[off];
 		}
 
@@ -250,8 +264,14 @@ namespace ds {
 			return *this;
 		}
 		inline string& operator+=(char c) {
-			data.back() = c;
-			data.push_back(0);
+			if(data.size() == 0) {
+				data.resize(2);
+				data[0] = c;
+				data[1] = 0;
+			} else {
+				data.back() = c;
+				data.push_back(0);
+			}
 			return *this;
 		}
 
