@@ -530,14 +530,13 @@ namespace ds {
 	class sortarray {
 	private:
 		vector<T> values;
-		vector<T*> valuesSorted;
+		vector<size_t> valuesSorted;
 
-		inline void resetPtrs() {
-			if (valuesSorted.size() != values.size())
-				valuesSorted.resize(values.size());
+		inline void resetInds() {
+			valuesSorted.resize(values.size());
 
 			for (size_t i = 0; i < values.size();i++) {
-				valuesSorted[i] = &values[i];
+				valuesSorted[i] = i;
 			}
 		}
 	public:
@@ -546,22 +545,22 @@ namespace ds {
 		}
 
 		inline sortarray(const vector<T>& srcV) : values(srcV) {
-			resetPtrs();
+			resetInds();
 		}
 
 		inline sortarray(const sortarray<T>& src) : values(src.values) {
-			resetPtrs();
+			resetInds();
 		}
 
 		inline sortarray& operator=(const sortarray<T>& src) {
 			values = src.values;
-			resetPtrs();
+			resetInds();
 			return *this;
 		}
 
 		inline void push_back(const T& t) {
+			valuesSorted.push_back(values.size());
 			values.push_back(t);
-			valuesSorted.push_back(&values.back());
 		}
 
 		inline void clear() {
@@ -574,7 +573,7 @@ namespace ds {
 		}
 
 		inline T& getSorted(size_t i) {
-			return *valuesSorted[i];
+			return values[valuesSorted[i]];
 		}
 
 		inline T& get(size_t i) {
@@ -595,15 +594,8 @@ namespace ds {
 			return values.end();
 		}
 
-		inline T** beginSortPtrs() {
-			return valuesSorted.begin();
-		}
-		inline T** endSortPtrs() {
-			return valuesSorted.end();
-		}
-
 		inline size_t getActualIndex(size_t sortInd) const {
-			return valuesSorted[sortInd] - begin();
+			return valuesSorted[sortInd];
 		}
 	};
 
