@@ -850,7 +850,7 @@ namespace ImGuiFD {
 
 				ImGui::SetCursorPos(cursorPos);
 				if (lineInd + 1 >= maxLines && wrap < text+len) {
-					ImGui::RenderTextEllipsis(ImGui::GetWindowDrawList(), ImGui::GetCursorScreenPos(), ImGui::GetCursorScreenPos() + lineSize + ImVec2{0,g.Style.FramePadding.y}, ImGui::GetCursorScreenPos().x + maxWidth, ImGui::GetCursorScreenPos().x + maxWidth, s, text + len, 0);
+					ImGui::RenderTextEllipsis(ImGui::GetWindowDrawList(), ImGui::GetCursorScreenPos(), ImGui::GetCursorScreenPos() + lineSize + ImVec2{0,g.Style.FramePadding.y}, ImGui::GetCursorScreenPos().x + maxWidth, s, text + len, 0);
 				}
 				else {
 					ImGui::TextUnformatted(s, wrap);
