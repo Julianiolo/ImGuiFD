@@ -405,9 +405,9 @@ namespace ds {
 		vector<pair<ImGuiID, T>> data;
 
 		struct Comparer {
-			const map<T>& map;
+			const map<T>& the_map;
 			int operator()(ImGuiID v, size_t ind) const {
-				ImGuiID o = map.data[ind].first;
+				ImGuiID o = the_map.data[ind].first;
 				if (v == o) return 0;
 				return v < o ? -1 : 1;
 			}
@@ -461,9 +461,9 @@ namespace ds {
 		using iterator = typename container::iterator;
 
 		struct Comparer {
-			const set<T>& set;
+			const set<T>& the_set;
 			int operator()(const T& v, size_t ind) const {
-				const T& o = set.data[ind];
+				const T& o = the_set.data[ind];
 				if (v == o) return 0;
 				return v < o ? -1 : 1;
 			}
