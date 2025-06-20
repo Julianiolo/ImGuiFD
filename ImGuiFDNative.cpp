@@ -236,7 +236,7 @@ ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path_, bo
 bool ImGuiFD::Native::isValidDir(const char* dir) {
 #ifdef DT_HAS_STAT
 	struct stat info;
-	int ret = stat(dir, &info);
+	int ret = stat(makePathStrOSComply(dir).c_str(), &info);
 	return ret == 0 && (info.st_mode & S_IFDIR);
 #else
 	return false;
