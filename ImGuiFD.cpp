@@ -1,3 +1,4 @@
+#define IMGUI_DEFINE_MATH_OPERATORS 1
 #include "ImGuiFD.h"
 #include "ImGuiFD_internal.h"
 

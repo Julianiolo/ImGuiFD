@@ -1,8 +1,8 @@
 #ifndef __IMGUIFD_H__
 #define __IMGUIFD_H__
 
-#define IMGUIFD_VERSION "0.1 alpha"
-#define IMGUIFD_VERSION_NUM 0
+#define IMGUIFD_VERSION "0.2 alpha"
+#define IMGUIFD_VERSION_NUM 000002
 
 // uncomment this for stl support
 //#define IMGUIFD_ENABLE_STL 1
@@ -15,7 +15,6 @@
 #endif
 
 
-#define IMGUI_DEFINE_MATH_OPERATORS 1
 #include "imgui.h"
 #include <stdint.h>
 #include <ctime>
