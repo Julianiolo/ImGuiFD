@@ -1826,7 +1826,8 @@ size_t ImGuiFD::FDInstance::sizeBytes() const {
 
 
 void ImGuiFD::OpenDialog(const char* str_id, ImGuiFDMode mode, const char* path, const char* filter, ImGuiFDDialogFlags flags, size_t maxSelections) {
-	ImGuiID id = ImHashStr(str_id);
+	IM_ASSERT(path != NULL);
+    ImGuiID id = ImHashStr(str_id);
 #if 0
 	IM_ASSERT(!openDialogs.contains(id));
 #else
@@ -1847,7 +1848,7 @@ void ImGuiFD::CloseDialog(const char* str_id) {
 	CloseDialogID(id);
 }
 void ImGuiFD::CloseCurrentDialog() {
-	IM_ASSERT(fd != 0);
+	IM_ASSERT(fd != 0 && "ImGuiFD: not inside Begin/End");
 	ImGuiID id = fd->id;
 	CloseDialogID(id);
 }
@@ -1857,8 +1858,7 @@ bool ImGuiFD::BeginDialog(const char* str_id) {
 	return BeginDialog(id);
 }
 bool ImGuiFD::BeginDialog(ImGuiID id) {
-	// Begin/End mismatch
-	IM_ASSERT(fd == 0);
+	IM_ASSERT(fd == 0 && "ImGuiFD: Begin/End mismatch");
 
 	if (!openDialogs.contains(id))
 		return false;
@@ -1912,8 +1912,7 @@ bool ImGuiFD::BeginDialog(ImGuiID id) {
 	return ret;
 }
 void ImGuiFD::EndDialog() {
-	// Begin/End mismatch
-	IM_ASSERT(fd != 0);
+	IM_ASSERT(fd != 0 && "ImGuiFD: Begin/End mismatch");
 
 	if (fd->toDelete)
 		openDialogs.erase(fd->id);
@@ -1922,46 +1921,46 @@ void ImGuiFD::EndDialog() {
 }
 
 bool ImGuiFD::ActionDone() {
-	IM_ASSERT(fd != 0);
+	IM_ASSERT(fd != 0 && "ImGuiFD: not inside Begin/End");
 	return fd->actionDone;
 }
 bool ImGuiFD::SelectionMade() {
-	IM_ASSERT(fd != 0);
+	IM_ASSERT(fd != 0 && "ImGuiFD: not inside Begin/End");
 	return fd->selectionMade;
 }
 const char* ImGuiFD::GetResultStringRaw() {
-	IM_ASSERT(fd != 0);
+	IM_ASSERT(fd != 0 && "ImGuiFD: not inside Begin/End");
 
 	IM_ASSERT(fd->selectionMade);
 
 	return fd->inputText.c_str();
 }
 size_t ImGuiFD::GetSelectionStringsAmt() {
-	IM_ASSERT(fd != 0);
+	IM_ASSERT(fd != 0 && "ImGuiFD: not inside Begin/End");
 
-	IM_ASSERT(fd->selectionMade);
+	IM_ASSERT(fd->selectionMade && "ImGuiFD: maybe you didn't check if a selection was made?");
 
 	return fd->selected.size();
 }
 const char* ImGuiFD::GetSelectionNameString(size_t ind) {
-	IM_ASSERT(fd != 0);
+	IM_ASSERT(fd != 0 && "ImGuiFD: not inside Begin/End");
 
-	IM_ASSERT(fd->selectionMade); // maybe you didn't check if a selection was made?
+	IM_ASSERT(fd->selectionMade && "ImGuiFD: maybe you didn't check if a selection was made?");
 
 	return fd->inputStrs[ind].first.c_str();
 }
 const char* ImGuiFD::GetSelectionPathString(size_t ind) {
-	IM_ASSERT(fd != 0);
+	IM_ASSERT(fd != 0 && "ImGuiFD: not inside Begin/End");
 
-	IM_ASSERT(fd->selectionMade); // maybe you didn't check if a selection was made?
+	IM_ASSERT(fd->selectionMade && "ImGuiFD: maybe you didn't check if a selection was made?");
 
 	return fd->inputStrs[ind].second.c_str();
 }
 
-void ImGuiFD::DrawDebugWin(const char* str_id) {
-	IM_ASSERT(fd == 0);
+void ImGuiFD::DrawDebugWin(const char* dialog_str_id) {
+	IM_ASSERT(fd == 0 && "ImGuiFD: not inside Begin/End");
 
-	ImGuiID id = ImHashStr(str_id);
+	ImGuiID id = ImHashStr(dialog_str_id);
 
 	if (!openDialogs.contains(id))
 		return;
@@ -2011,15 +2010,3 @@ void ImGuiFD::DrawDebugWin(const char* str_id) {
 void ImGuiFD::Shutdown() {
 	openDialogs.clear(); // this is crucial to call all the deconstructors before the stuff they depend on gets shut down
 }
-
-
-
-/*
-
-// remove buttons from the front until the ellipse button also fits in
-//while (totalWidth + ellipseBtnWidth > width && lastToFit < fd->currentPath.parts.size()) {
-//	totalWidth -= ImGui::CalcTextSize(fd->currentPath.parts[lastToFit].c_str(), NULL, true).x + style.FramePadding.x * 2 + style.ItemSpacing.x;
-//	lastToFit++;
-//}
-
-*/

@@ -37,14 +37,13 @@ enum {
 };
 typedef uint8_t ImGuiFDMode;
 
-enum {
+enum ImGuiFDDialogFlags_ {
     ImGuiFDDialogFlags_Modal = 1<<0
 };
 typedef int ImGuiFDDialogFlags;
 
 namespace ImGuiFD {
     struct DirEntry {
-    public:
         DirEntry();
         DirEntry(const DirEntry& src);
         DirEntry& operator=(const DirEntry& src);
@@ -107,8 +106,6 @@ namespace ImGuiFD {
 
     void SetFileDataCallback(RequestFileDataCallback loadCallB, FreeFileDataCallback unloadCallB);
 
-    void GetFileDialog(const char* str_id, const char* filter, const char* path, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
-
     void OpenDialog(const char* str_id, ImGuiFDMode mode, const char* path, const char* filter = NULL, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1);
     void CloseDialog(const char* str_id);
     void CloseCurrentDialog();
@@ -124,7 +121,8 @@ namespace ImGuiFD {
     const char* GetSelectionNameString(size_t ind);
     const char* GetSelectionPathString(size_t ind);
 
-    void DrawDebugWin(const char* str_id);
+    // draw a debug window for the given dialog
+    void DrawDebugWin(const char* dialog_str_id);
 
     void Shutdown();
 }
