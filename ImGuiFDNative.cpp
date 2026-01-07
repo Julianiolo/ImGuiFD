@@ -17,11 +17,6 @@
 	#include <limits.h>
 
 	#define GETCWD getcwd
-	#define GETABS realpath
-#endif
-
-#if defined(_WIN32) || defined(__unix__)
-#define DT_HAS_STAT
 #endif
 
 
@@ -57,13 +52,8 @@ ds::string ImGuiFD::Native::getAbsolutePath(const char* path_) {
 
 bool ImGuiFD::Native::fileExists(const char* path) {
 	ds::string path_ = makePathStrOSComply(path);
-#ifdef _MSC_VER
-	struct _stat64 st;
-	return __stat64(path_.c_str(), &st) == 0;
-#else
 	struct stat st;
 	return stat(path_.c_str(), &st) == 0;
-#endif
 }
 
 bool ImGuiFD::Native::rename(const char* name, const char* newName) {
@@ -73,14 +63,9 @@ bool ImGuiFD::Native::rename(const char* name, const char* newName) {
 static void statDirEnt(ImGuiFD::DirEntry* entry) {
 	ds::string path = ImGuiFD::Native::makePathStrOSComply(entry->path);
 
-#ifdef DT_HAS_STAT
-#ifdef _MSC_VER
-	struct _stat64 st;
-	int ret = __stat64(path.c_str(), &st);
-#else
+#ifdef __unix__
 	struct stat st;
 	int ret = lstat(path.c_str(), &st);
-#endif
 
 	if (ret != 0)
 		return;
@@ -88,14 +73,13 @@ static void statDirEnt(ImGuiFD::DirEntry* entry) {
 	entry->size = entry->isFolder? -1 : st.st_size;
 	entry->lastModified = st.st_mtime;
 	entry->creationDate = st.st_ctime;
-
-#else
-#ifdef _WIN32
+#elif defined(_WIN32)
 	WIN32_FILE_ATTRIBUTE_DATA fInfo;
 	GetFileAttributesEx(path.c_str(), GetFileExInfoStandard,&fInfo);
 	entry->size = ((uint64_t)fInfo.nFileSizeHigh << 32) | fInfo.nFileSizeLow;
 	entry->creationDate = ((uint64_t)fInfo.ftCreationTime.dwHighDateTime << 32) | fInfo.ftCreationTime.dwLowDateTime;
-#endif
+#else
+#error not implemented
 #endif
 }
 
@@ -234,13 +218,9 @@ ds::vector<ImGuiFD::DirEntry> ImGuiFD::Native::loadDirEnts(const char* path_, bo
 }
 
 bool ImGuiFD::Native::isValidDir(const char* dir) {
-#ifdef DT_HAS_STAT
 	struct stat info;
 	int ret = stat(makePathStrOSComply(dir).c_str(), &info);
 	return ret == 0 && (info.st_mode & S_IFDIR);
-#else
-	return false;
-#endif
 }
 
 bool ImGuiFD::Native::makeFolder(const char* path) {
