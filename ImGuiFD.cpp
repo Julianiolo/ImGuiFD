@@ -285,7 +285,7 @@ namespace ImGuiFD {
 			ds::string rawPathFix = utils::fixDirStr(rawPath).c_str(); // fixes weird behaviour on win when e.g. setting to "D:"
 			parts = utils::splitPath(
 				utils::fixDirStr(
-					Native::getAbsolutePath(rawPathFix.c_str()).c_str()
+					Native::getAbsolutePath(rawPathFix.c_str()).value().c_str()  // TODO error handling
 				).c_str()
 			);
 		}
@@ -580,10 +580,10 @@ namespace ImGuiFD {
 
 			// return true if it was able to load the directory
 			bool update(const char* dir) {
-				auto res = Native::loadDirEnts(dir, &loadedSucessfully);
-				if(loadedSucessfully)
-					setEntrysTo(res);
-				return loadedSucessfully;
+				auto res = Native::loadDirEnts(dir);
+				if(res.has_value())
+					setEntrysTo(res.value());
+				return res.has_value();
 			}
 
 			void setEntrysTo(const ds::vector<DirEntry>& src) {
@@ -669,7 +669,7 @@ namespace ImGuiFD {
 		ds::vector<ds::pair<ds::string,ds::string>> inputStrs;
 
 		FileDialog(ImGuiID id, const char* str_id, const char* filter, const char* path, ImGuiFDMode mode, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1) : 
-			str_id(str_id), id(id), path(utils::fixDirStr(Native::getAbsolutePath(path).c_str())), 
+			str_id(str_id), id(id), path(utils::fixDirStr(Native::getAbsolutePath(path).value().c_str())),  // TODO error handling
 			currentPath(this->path.c_str()), oldPath(this->path),
 			undoStack(32), redoStack(32),
 			entrys(filter),

@@ -14,6 +14,9 @@
 
 namespace ds {
 #ifdef IMGUIFD_ENABLE_STL
+    template<typename T>
+    using move = std::move<T>;
+
 	template<typename T>
 	using vector = std::vector<T>;
 
@@ -21,6 +24,15 @@ namespace ds {
 	template<typename T1, typename T2>
 	using pair = std::pair<T1, T2>;
 #else
+    template<class T> struct remove_reference { typedef T type; };
+    template<class T> struct remove_reference<T&> { typedef T type; };
+    template<class T> struct remove_reference<T&&> { typedef T type; };
+
+    template<typename T>
+    remove_reference<T>::type&& move(T&& t) noexcept {
+        return static_cast<remove_reference<T>::type&&>(t);
+    }
+
 	template<typename T>
 	class vector{
 	private:
@@ -95,6 +107,8 @@ namespace ds {
 		inline T&           operator[](size_t i)                { IM_ASSERT(i < Size); return Data[i]; }
 		inline const T&     operator[](size_t i) const          { IM_ASSERT(i < Size); return Data[i]; }
 
+        inline T*           data()                              { return Data; }
+        inline const T*     data()                              { return Data; }
 		inline T*           begin()                             { return Data; }
 		inline const T*     begin() const                       { return Data; }
 		inline T*           end()                               { return Data + Size; }
@@ -209,6 +223,9 @@ namespace ds {
 		vector<char> data;
 		inline string() {
 			
+		}
+        inline string(size_t size) {
+			data.resize(size, 0);
 		}
 		inline string(const char* s, const char* s_end = 0) : data((s_end ? (s_end-s) : strlen(s))+1) {
 			for (size_t i = 0; i < data.size(); i++) {
@@ -329,6 +346,24 @@ namespace ds {
 		}
 
 		return out;
+	}
+
+    template<typename ... Args>
+	ds::string format(const char* str, Args ... args) { // https://stackoverflow.com/a/26221725
+		int size_i = snprintf(NULL, 0, str, args ...);
+		if (size_i <= 0) {
+            IM_ASSERT(0 && "error during string formatting");
+            return "";
+        }
+
+		size_i++; // add size for null term
+
+		ds::string s;
+		s.resize(size_i);
+
+		snprintf(s.data(), size_i, str, args ...);
+
+		return s;
 	}
 
 	// find value, if not found return (size_t)-1; compare needs to be a function like object with (const T& a, size_t ind_of_b) -> int
@@ -714,6 +749,155 @@ namespace ds {
 			arr = newVec;
 		}
 	};
+    
+    template<typename OkT>
+    class _ResultOk {
+        OkT t;
+    };
+    template<typename ErrT>
+    class _ResultErr {
+        ErrT t;
+    };
+
+    template<typename OkT>
+    static _ResultOk<OkT> Ok(const OkT& o) {
+        return _ResultOk(o);
+    }
+    template<typename OkT>
+    static _ResultOk<OkT> Ok(OkT&& o) noexcept {
+        return _ResultOk(move(o));
+    }
+    template<typename ErrT>
+    static _ResultErr<ErrT> Err(const ErrT& e) {
+        return _ResultErr(e);
+    }
+    template<typename ErrT>
+    static _ResultErr<ErrT> Err(ErrT&& e) noexcept {
+        return _ResultErr(move(e));
+    }
+    
+    template<typename OkT, typename ErrT>
+    class Result {
+    public:
+        friend Res;
+
+        bool has_value() const noexcept {
+            return state == State_Ok;
+        }
+        bool has_err() const noexcept {
+            return state == State_Err;
+        }
+        
+
+        OkT& value() noexcept {
+            IM_ASSERT(state == State_Ok);
+            return ok;
+        }
+        const OkT& value() const noexcept {
+            IM_ASSERT(state == State_Ok);
+            return ok;
+        }
+
+
+        ErrT& err() noexcept {
+            IM_ASSERT(state == State_Err);
+            return err;
+        }
+        const OkT& err() const noexcept {
+            IM_ASSERT(state == State_Err);
+            return err;
+        }
+        _ResultErr<ErrT&&> err_prop() noexcept {
+            IM_ASSERT(state == State_Err);
+            return _ResultErr(move(err));
+        }
+
+        template<typename OkT_>
+        Result(const _ResultOk<OkT_>& ok_) : state(State_Ok), ok(ok_.t) {
+
+        }
+        template<typename OkT_>
+        Result(_ResultOk<OkT_>&& ok_) : state(State_Ok), ok(move(ok_.t)) {
+
+        }
+        template<typename ErrT_>
+        Result(const _ResultErr<ErrT_>& err_) : state(State_Err), err(err_.t) {
+
+        }
+        template<typename ErrT_>
+        Result(_ResultErr<ErrT_>&& err_) : state(State_Err), err(move(err_.t)) {
+
+        }
+
+        Result(const Result& o) : state(o.state)  {
+            if(state == State_Ok) {
+                ok = o.ok;
+            } else if(state == State_Err) {
+                err = o.err;
+            } else {
+                IM_ASSERT(0);
+            }
+        }
+        Result(Result&& o) noexcept : state(o.state)  {
+            if(state == State_Ok) {
+                ok = move(o.ok);
+            } else if(state == State_Err) {
+                err = move(o.err);
+            } else {
+                IM_ASSERT(0);
+            }
+        }
+        Result& operator=(const Result& o) {
+            clear();
+            state = o.state;
+            if(state == State_Ok) {
+                ok = o.ok;
+            } else if(state == State_Err) {
+                err = o.err;
+            } else {
+                IM_ASSERT(0);
+            }
+            return *this;
+        }
+        Result operator=(Result&& o) noexcept {
+            state = o.state;
+            if(state == State_Ok) {
+                ok = move(o.ok);
+            } else if(state == State_Err) {
+                err = move(o.err);
+            } else {
+                IM_ASSERT(0);
+            }
+            return *this;
+        }
+
+        ~Result() {
+            clear();
+        }
+    private:
+        enum State {
+            State_Ok,
+            State_Err
+        }
+        State state;
+        union {
+            OkT ok;
+            ErrT err;
+        };
+    
+        void clear() {
+            if(state == State_Ok) {
+                ok.~OkT();
+            } else if(state == State_Err) {
+                err.~ErrT();
+            } else {
+                IM_ASSERT(0);
+            }
+        }
+    };
+
+    template<typename T>
+    using ErrResult = ds::Result<T, ds::string>;
 }
 
 namespace ImGuiFD {
@@ -751,10 +935,10 @@ namespace ImGuiFD {
 	namespace Native {
 		constexpr size_t MAX_PATH_LEN = 1024;
 
-		ds::string getAbsolutePath(const char* path);
+		ds::ErrResult<ds::string> getAbsolutePath(const char* path);
 		bool isValidDir(const char* dir);
 
-		ds::vector<DirEntry> loadDirEnts(const char* path, bool* success = 0);
+		ds::ErrResult<ds::vector<DirEntry>> loadDirEnts(const char* path);
 		bool fileExists(const char* path);
 
 		bool rename(const char* name, const char* newName);
