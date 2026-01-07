@@ -822,7 +822,7 @@ namespace ImGuiFD {
 
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, { 0,0 });
 		while (s < text + len && lineInd < maxLines) {
-			const char* wrap = g.Font->CalcWordWrapPositionA(g.FontSize/g.Font->FontSize, s, text+len, maxWidth);
+			const char* wrap = g.Font->CalcWordWrapPositionA(g.FontBakedScale, s, text+len, maxWidth);
 			
 			ImVec2 lineSize;
 			if (wrap == s || lineInd+1 == maxLines) {
@@ -1202,7 +1202,7 @@ namespace ImGuiFD {
 		ImGui::TableNextRow();
 		ImGui::TableNextColumn();
 		bool isSel = fd->selected.contains(ind);
-		ImGuiSelectableFlags flags = ImGuiSelectableFlags_AllowItemOverlap | ImGuiSelectableFlags_SpanAllColumns;
+		ImGuiSelectableFlags flags = ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns;
 
 		if (ImGui::Selectable(entry.isFolder?"[DIR]":"[FILE]", isSel, flags)) {
 			ClickedOnEntrySelect(ind, isSel, entry.isFolder);
@@ -1534,6 +1534,7 @@ namespace ImGuiFD {
 						}
 
 						ImGui::SetCursorPos(cursorEnd);
+            ImGui::Dummy(ImVec2(0,0));
 
 						//ImGuiWindow* window = ImGui::GetCurrentWindow();
 						//ImVec2 off = { window->Pos.x - window->Scroll.x, window->Pos.y - window->Scroll.y };
