@@ -250,9 +250,23 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEnts(const 
 			if (fdata.cFileName[0] == '.' && (fdata.cFileName[1] == 0 || (fdata.cFileName[1] == '.' && fdata.cFileName[2] == 0))) continue;
 
 			entrys.push_back(DirEntry());
-			DirEntry* entry = &entrys.back();
-			entry->id = (ImGuiID)((hash<<16)+i);
-			entry->name = ImStrdup(fdata.cFileName);
+            DirEntry* entry = &entrys.back();
+            entry->id = (ImGuiID)((hash<<16)+i);
+ 
+            auto ret = wStrToUtf8(fdata.cFileName);
+            if(ret.has_value()) {
+                entry->name = ImStrdup(ret.value().c_str());
+            } else {
+                size_t len = wcslen(fdata.cFileName)+1;
+                char* s = (char*)IM_ALLOC(len);
+                for(size_t i = 0; i<len; i++) {
+                    wchar_t c = fdata.cFileName[i];
+                    if(c < 0 || c > 127)
+                        c = '?';
+                    s[i] = (char)c;
+                }
+                entry->name = s;
+            }
 			entry->dir = ImStrdup(path.c_str());
 			entry->isFolder = !!(fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
 			entry->path = combinePath(entry->dir, entry->name, entry->isFolder);
@@ -260,14 +274,15 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEnts(const 
 
 			i++;
 		} while (FindNextFileW(findH, &fdata) != 0);
-
+        
         auto err = GetLastError();
+
+        FindClose(findH);
+
 		if (err != ERROR_NO_MORE_FILES) {
-			FindClose(findH);
 			return ds::Err(ds::format("FindNextFileW failed: %s", getErrorMsg(err).c_str()));
 		}
 
-		FindClose(findH);
 	}
 #else
 

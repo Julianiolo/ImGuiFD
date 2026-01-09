@@ -46,10 +46,15 @@ namespace ImGuiFD {
     struct DirEntry {
         DirEntry();
         DirEntry(const DirEntry& src);
+        DirEntry(DirEntry&& src);
         DirEntry& operator=(const DirEntry& src);
+        DirEntry& operator=(const DirEntry&& src);
         ~DirEntry();
 
         ImGuiID id = (ImGuiID)-1;
+
+        const char* error = 0;
+
         const char* name = 0;
         const char* dir = 0;
         const char* path = 0;

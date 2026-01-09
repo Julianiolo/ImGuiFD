@@ -1764,11 +1764,39 @@ ImGuiFD::DirEntry::DirEntry() {
 ImGuiFD::DirEntry::DirEntry(const DirEntry& src){
 	operator=(src);
 }
+ImGuiFD::DirEntry::DirEntry(DirEntry&& src) : 
+    id(src.id), error(src.error), 
+    name(src.name), dir(src.dir), path(src.path),
+    isFolder(src.isFolder),
+    size(src.size), lastModified(src.lastModified), creationDate(src.creationDate)
+{
+    src.id = (ImGuiID)-1;
+    src.error = src.name = src.dir = src.path = 0;
+}
 ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(const DirEntry& src) {
-	id = src.id;
-	name = src.name ? ImStrdup(src.name) : 0;
-	dir  = src.dir  ? ImStrdup(src.dir)  : 0;
-	path = src.dir  ? ImStrdup(src.path) : 0;
+	this->~DirEntry();
+    
+    id = src.id;
+    error = src.error ? ImStrdup(src.error) : 0;
+ 	name  = src.name  ? ImStrdup(src.name)  : 0;
+	dir   = src.dir   ? ImStrdup(src.dir)   : 0;
+	path  = src.path  ? ImStrdup(src.path)  : 0;
+	isFolder = src.isFolder;
+
+	size = src.size;
+	lastModified = src.lastModified;
+	creationDate = src.creationDate;
+
+	return *this;
+}
+ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(DirEntry&& src) {
+	this->~DirEntry();
+    
+    id = src.id;
+    error = src.error;
+ 	name  = src.name;
+	dir   = src.dir;
+	path  = src.path   ? ImStrdup(src.path)  : 0;
 	isFolder = src.isFolder;
 
 	size = src.size;
@@ -1778,6 +1806,7 @@ ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(const DirEntry& src) {
 	return *this;
 }
 ImGuiFD::DirEntry::~DirEntry() {
+    IM_FREE((void*)error);
 	IM_FREE((void*)name);
 	IM_FREE((void*)dir );
 	IM_FREE((void*)path);
