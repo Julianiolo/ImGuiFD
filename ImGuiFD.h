@@ -1,10 +1,10 @@
 #ifndef __IMGUIFD_H__
 #define __IMGUIFD_H__
 
-#define IMGUIFD_VERSION "0.2 alpha"
-#define IMGUIFD_VERSION_NUM 000002
+#define IMGUIFD_VERSION "0.1.0 alpha"
+#define IMGUIFD_VERSION_NUM 000100
 
-// uncomment this for stl support
+// uncomment this for using stl internally
 //#define IMGUIFD_ENABLE_STL 1
 
 
@@ -30,7 +30,7 @@ Example Filters:
     "{*},{Text Files:*.txt,*.text}"
 */
 
-enum {
+enum ImGuiFDMode_ {
     ImGuiFDMode_LoadFile = 0,
     ImGuiFDMode_SaveFile,
     ImGuiFDMode_OpenDir,
@@ -46,23 +46,23 @@ namespace ImGuiFD {
     struct DirEntry {
         DirEntry();
         DirEntry(const DirEntry& src);
-        DirEntry(DirEntry&& src);
+        DirEntry(DirEntry&& src) noexcept;
         DirEntry& operator=(const DirEntry& src);
-        DirEntry& operator=(const DirEntry&& src);
+        DirEntry& operator=(DirEntry&& src) noexcept;
         ~DirEntry();
 
         ImGuiID id = (ImGuiID)-1;
 
-        const char* error = 0;
+        const char* error = NULL;
 
-        const char* name = 0;
-        const char* dir = 0;
-        const char* path = 0;
+        const char* name = NULL;
+        const char* dir = NULL;
+        const char* path = NULL;
         bool isFolder = false;
 
         uint64_t size = (uint64_t)-1;
-        time_t lastModified = -1;
-        time_t creationDate = -1;
+        double lastAccessed = NAN;
+        double lastModified = NAN;
     };
 
     struct GlobalSettings {
@@ -72,7 +72,7 @@ namespace ImGuiFD {
         const float iconModeSizeDef = 100;
         float iconModeSize = iconModeSizeDef;
 
-        enum {
+        enum DisplayMode_ {
             DisplayMode_List  = 0,
             DisplayMode_Icons = 1
         };

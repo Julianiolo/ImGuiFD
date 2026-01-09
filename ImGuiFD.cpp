@@ -198,7 +198,7 @@ namespace ImGuiFD {
 		DEIG_NAME = 0,
 		DEIG_SIZE = 1,
 		DEIG_LASTMOD_DATE,
-		DEIG_CREATION_DATE,
+		DEIG_LASTACC_DATE,
 	};
 
 	static int customStrCmp(const char* strA, const char* strB) {
@@ -250,8 +250,8 @@ namespace ImGuiFD {
 					if (diff > 0) delta = 1;
 					break;
 				}
-				case DEIG_CREATION_DATE: {
-					int64_t diff = ((int64_t)a.creationDate - (int64_t)b.creationDate); // int64 to prevent overflows
+				case DEIG_LASTACC_DATE: {
+					int64_t diff = ((int64_t)a.lastAccessed - (int64_t)b.lastAccessed); // int64 to prevent overflows
 					if (diff < 0) delta = -1;
 					if (diff > 0) delta = 1;
 					break;
@@ -903,9 +903,10 @@ namespace ImGuiFD {
 		return changed;
 	}
 
-	static void formatTime(char* buf, size_t bufSize, time_t unixTime) {
-		tm* tm = localtime(&unixTime);
-		strftime(buf, bufSize, "%d.%m.%y %H:%M", tm);
+	static void formatTime(char* buf, size_t bufSize, double unixTime) {
+        time_t unixTime_ = (time_t)unixTime;
+		tm* tm = localtime(&unixTime_);
+		strftime(buf, bufSize, "%d.%m.%y %H:%M:%S", tm);
 	}
 	static void formatSize(char* buf, size_t bufSize, uint64_t size) {
 		snprintf(buf, bufSize, "%" PRIu64 " Bytes", size);
@@ -1224,18 +1225,18 @@ namespace ImGuiFD {
 			ImGui::Dummy({ 0,0 });
 
 		ImGui::TableNextColumn();
-		if (entry.lastModified != (time_t)-1) {
+        if (!isnan(entry.lastAccessed)) {
 			char buf[128];
-			formatTime(buf, sizeof(buf), entry.lastModified);
+			formatTime(buf, sizeof(buf), entry.lastAccessed);
 			ImGui::TextUnformatted(buf);
 		}
 		else
 			ImGui::Dummy({ 0,0 });
 
 		ImGui::TableNextColumn();
-		if (entry.creationDate != (time_t)-1) {
+		if (!isnan(entry.lastModified)) {
 			char buf[128];
-			formatTime(buf, sizeof(buf), entry.creationDate);
+			formatTime(buf, sizeof(buf), entry.lastModified);
 			ImGui::TextUnformatted(buf);
 		}
 		else
@@ -1263,8 +1264,8 @@ namespace ImGuiFD {
 			ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_NoSort);
 			ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_DefaultSort, 0, DEIG_NAME);
 			ImGui::TableSetupColumn("Size", 0, 0, DEIG_SIZE);
-			ImGui::TableSetupColumn("Creation Date", 0, 0, DEIG_CREATION_DATE);
-			ImGui::TableSetupColumn("Last Modified", 0, 0, DEIG_LASTMOD_DATE);
+			ImGui::TableSetupColumn("Last accessed", 0, 0, DEIG_LASTACC_DATE);
+			ImGui::TableSetupColumn("Last modified", 0, 0, DEIG_LASTMOD_DATE);
 			ImGui::TableHeadersRow();
 
 			if (ImGuiTableSortSpecs* sorts_specs = ImGui::TableGetSortSpecs())
@@ -1309,18 +1310,18 @@ namespace ImGuiFD {
 				ImGui::TextUnformatted(buf);
 			}
 
-			if (entry.creationDate != (time_t)-1) {
+			if (!isnan(entry.lastAccessed)) {
 				ImGui::TableNextRow();
 				ImGui::TableNextColumn();
 				ImGui::TextUnformatted("Created:");
 
 				ImGui::TableNextColumn();
 				char buf[128];
-				formatTime(buf, sizeof(buf), entry.creationDate);
+				formatTime(buf, sizeof(buf), entry.lastAccessed);
 				ImGui::TextUnformatted(buf);
 			}
 
-			if (entry.lastModified != (time_t)-1) {
+			if (!isnan(entry.lastModified)) {
 				ImGui::TableNextRow();
 				ImGui::TableNextColumn();
 				ImGui::TextUnformatted("Last Modified:");
@@ -1764,14 +1765,14 @@ ImGuiFD::DirEntry::DirEntry() {
 ImGuiFD::DirEntry::DirEntry(const DirEntry& src){
 	operator=(src);
 }
-ImGuiFD::DirEntry::DirEntry(DirEntry&& src) : 
+ImGuiFD::DirEntry::DirEntry(DirEntry&& src) noexcept : 
     id(src.id), error(src.error), 
     name(src.name), dir(src.dir), path(src.path),
     isFolder(src.isFolder),
-    size(src.size), lastModified(src.lastModified), creationDate(src.creationDate)
+    size(src.size), lastAccessed(src.lastAccessed), lastModified(src.lastModified)
 {
     src.id = (ImGuiID)-1;
-    src.error = src.name = src.dir = src.path = 0;
+    src.error = src.name = src.dir = src.path = NULL;
 }
 ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(const DirEntry& src) {
 	this->~DirEntry();
@@ -1784,32 +1785,39 @@ ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(const DirEntry& src) {
 	isFolder = src.isFolder;
 
 	size = src.size;
+	lastAccessed = src.lastAccessed;
 	lastModified = src.lastModified;
-	creationDate = src.creationDate;
 
 	return *this;
 }
-ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(DirEntry&& src) {
+ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(DirEntry&& src) noexcept {
 	this->~DirEntry();
     
     id = src.id;
     error = src.error;
  	name  = src.name;
 	dir   = src.dir;
-	path  = src.path   ? ImStrdup(src.path)  : 0;
+	path  = src.path;
 	isFolder = src.isFolder;
 
 	size = src.size;
+	lastAccessed = src.lastAccessed;
 	lastModified = src.lastModified;
-	creationDate = src.creationDate;
+
+    src.id = (ImGuiID)-1;
+    src.error = src.name = src.dir = src.path = NULL;
 
 	return *this;
 }
 ImGuiFD::DirEntry::~DirEntry() {
     IM_FREE((void*)error);
+    error = NULL;
 	IM_FREE((void*)name);
-	IM_FREE((void*)dir );
-	IM_FREE((void*)path);
+    name = NULL;
+    IM_FREE((void*)dir );
+    dir = NULL;
+    IM_FREE((void*)path);
+    path = NULL;
 }
 
 uint64_t ImGuiFD::FileData::getSize() const {
