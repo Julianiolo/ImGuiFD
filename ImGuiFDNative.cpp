@@ -5,18 +5,18 @@
 #include <sys/stat.h>
 
 #if defined(_WIN32)
-	#define WIN32_LEAN_AND_MEAN
-	#include <windows.h>
+    #define WIN32_LEAN_AND_MEAN
+    #include <windows.h>
 
-	#include <direct.h> // for _getcwd _fullpath
+    #include <direct.h> // for _getcwd _fullpath
 
-	#define GETCWD _getcwd
+    #define GETCWD _getcwd
 #else
-	#include <dirent.h>
-	#include <stdlib.h>
-	#include <limits.h>
+    #include <dirent.h>
+    #include <stdlib.h>
+    #include <limits.h>
 
-	#define GETCWD getcwd
+    #define GETCWD getcwd
 #endif
 
 #ifdef _WIN32
@@ -25,18 +25,18 @@ ds::string getErrorMsg(DWORD errorCode) {
     ds::string errMsg;
     
     // https://stackoverflow.com/questions/1387064/how-to-get-the-error-message-from-the-error-code-returned-by-getlasterror
-	LPSTR messageBuffer = nullptr;
+    LPSTR messageBuffer = nullptr;
 
-	//Ask Win32 to give us the string version of that message ID.
-	//The parameters we pass in, tell Win32 to create the buffer that holds the message for us (because we don't yet know how long the message string will be).
-	size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-		NULL, errorCode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
+    //Ask Win32 to give us the string version of that message ID.
+    //The parameters we pass in, tell Win32 to create the buffer that holds the message for us (because we don't yet know how long the message string will be).
+    size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL, errorCode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
 
-	//Copy the error message into a std::string.
-	errMsg = ds::string(messageBuffer);
+    //Copy the error message into a std::string.
+    errMsg = ds::string(messageBuffer);
 
-	//Free the Win32's string's buffer.
-	LocalFree(messageBuffer);
+    //Free the Win32's string's buffer.
+    LocalFree(messageBuffer);
 }
 
 static ds::vector<wchar_t> wstr_buf;
@@ -111,89 +111,89 @@ static double winFileTimeToUnix(const FILETIME& ft) {
     li.LowPart = ft.dwLowDateTime;
     li.HighPart = ft.dwHighDateTime;
     if (li.QuadPart == 0) return NAN;
-	return (double)li.QuadPart / 1e7 - 11644473600LL;
+    return (double)li.QuadPart / 1e7 - 11644473600LL;
 }
 #endif
 
 ds::ErrResult<ds::string> ImGuiFD::Native::getAbsolutePath(const char* path_) {
-	if (path_[0] == '/' && path_[0] == 0)  // path_ == "/"
-		return ds::Ok("/");
+    if (path_[0] == '/' && path_[0] == 0)  // path_ == "/"
+        return ds::Ok<const char*>("/");
 
-	ds::string path = makePathStrOSComply(path_);
+    ds::string path = makePathStrOSComply(path_);
 
-	if (path.size() == 0)
-		path = ".";
+    if (path.size() == 0)
+        path = ".";
 
-	
+    
 #ifdef _WIN32
     auto res = utf8ToWStrBuf(path.c_str());
     if(res.has_err())
         return res.error_prop();
     wchar_t* path_w = res.value();
 
-	ds::vector<wchar_t> path_full(1024);
-	DWORD ret = GetFullPathNameW(path_w, (DWORD)path_full.size(), path_full.data(), NULL);
-	if (ret == 0)
+    ds::vector<wchar_t> path_full(1024);
+    DWORD ret = GetFullPathNameW(path_w, (DWORD)path_full.size(), path_full.data(), NULL);
+    if (ret == 0)
         return ds::Err(ds::format("getAbsolutePath(%s) failed: %s", path_, getErrorMsg(GetLastError()).c_str()));
-	if (ret > path_full.size()) {
+    if (ret > path_full.size()) {
         path_full.resize((size_t)ret);
-		ret = GetFullPathNameW(path_w, (DWORD)path_full.size(), path_full.data(), NULL);
-		if (ret == 0 || ret > path_full.size())
+        ret = GetFullPathNameW(path_w, (DWORD)path_full.size(), path_full.data(), NULL);
+        if (ret == 0 || ret > path_full.size())
             return ds::Err(ds::format("getAbsolutePath(%s) failed: %s", path_, getErrorMsg(GetLastError()).c_str()));
-	}
+    }
 
     auto out_ = wStrToUtf8(path_full.data());
     if(out_.has_err());
         out_.error_prop();
     ds::string out = move(out_.value());
 #else
-	char* out_ = realpath(path.c_str(), NULL);
-	if (out_ == NULL) return ds::Err(ds::format("realpath(%s) failed: %s", path_, strerror(errno)));
-	ds::string out(out_);
-	free(out_);
+    char* out_ = realpath(path.c_str(), NULL);
+    if (out_ == NULL) return ds::Err(ds::format("realpath(%s) failed: %s", path_, strerror(errno)));
+    ds::string out(out_);
+    free(out_);
 #endif
 
-	return ds::Ok(ds::move(out));
+    return ds::Ok(ds::move(out));
 }
 
 bool ImGuiFD::Native::fileExists(const char* path) {
-	ds::string path_ = makePathStrOSComply(path);
-	struct stat st;
-	return stat(path_.c_str(), &st) == 0 && (st.st_mode & S_IFREG);
+    ds::string path_ = makePathStrOSComply(path);
+    struct stat st;
+    return stat(path_.c_str(), &st) == 0 && (st.st_mode & S_IFREG);
 }
 
 bool ImGuiFD::Native::rename(const char* name, const char* newName) {
-	return ::rename(name, newName) == 0;
+    return ::rename(name, newName) == 0;
 }
 
 static void statDirEnt(ImGuiFD::DirEntry* entry) {
-	ds::string path = ImGuiFD::Native::makePathStrOSComply(entry->path);
+    ds::string path = ImGuiFD::Native::makePathStrOSComply(entry->path);
 
 #ifdef __unix__
-	struct stat st;
-	int ret = lstat(path.c_str(), &st);
+    struct stat st;
+    int ret = lstat(path.c_str(), &st);
 
-	if (ret != 0)
-		return;
+    if (ret != 0)
+        return;
 
-	entry->size = entry->isFolder? -1 : st.st_size;
-	entry->lastAccessed = st.st_atime;
-	entry->lastModified = st.st_mtime;
+    entry->size = entry->isFolder? -1 : st.st_size;
+    entry->lastAccessed = st.st_atime;
+    entry->lastModified = st.st_mtime;
 #elif defined(_WIN32)
     auto res = utf8ToWStrBuf(path.c_str());
     if(res.has_err())
         return;
     wchar_t* path_w = res.value();
 
-	WIN32_FILE_ATTRIBUTE_DATA fInfo;
-	if(GetFileAttributesExW(path_w, GetFileExInfoStandard,&fInfo) == 0) {
+    WIN32_FILE_ATTRIBUTE_DATA fInfo;
+    if(GetFileAttributesExW(path_w, GetFileExInfoStandard,&fInfo) == 0) {
         if(entry->error == NULL) {
             entry->error = ds::format_("GetFileAttributesExW: %s", getErrorMsg(GetLastError()));
         }
         return;
     }
-	entry->size = ((uint64_t)fInfo.nFileSizeHigh << 32) | fInfo.nFileSizeLow;
-	entry->lastAccessed = winFileTimeToUnix(fInfo.ftLastAccessTime);
+    entry->size = ((uint64_t)fInfo.nFileSizeHigh << 32) | fInfo.nFileSizeLow;
+    entry->lastAccessed = winFileTimeToUnix(fInfo.ftLastAccessTime);
     entry->lastModified = winFileTimeToUnix(fInfo.ftLastWriteTime);
 #else
 #error not implemented
@@ -201,85 +201,85 @@ static void statDirEnt(ImGuiFD::DirEntry* entry) {
 }
 
 static char* combinePath(const char* dir, const char* fname, bool isFolder) {
-	const size_t dir_len = strlen(dir);
-	const size_t fname_len = strlen(fname);
-	char* out = (char*)IM_ALLOC(dir_len+1+fname_len+1+1);
-	IM_ASSERT(out);
-	strcpy(out, dir);
-	if (dir_len > 0 && dir[dir_len - 1] != '/')
-		strcat(out, "/");
-	strcat(out, fname);
-	if(isFolder)
-		strcat(out, "/");
-	return out;
+    const size_t dir_len = strlen(dir);
+    const size_t fname_len = strlen(fname);
+    char* out = (char*)IM_ALLOC(dir_len+1+fname_len+1+1);
+    IM_ASSERT(out);
+    strcpy(out, dir);
+    if (dir_len > 0 && dir[dir_len - 1] != '/')
+        strcat(out, "/");
+    strcat(out, fname);
+    if(isFolder)
+        strcat(out, "/");
+    return out;
 }
 
 static int cmpEntrys(const void* a_, const void* b_) {
-	const ImGuiFD::DirEntry* a = (const ImGuiFD::DirEntry*)a_;
-	const ImGuiFD::DirEntry* b = (const ImGuiFD::DirEntry*)b_;
-	if (ImGuiFD::settings.showDirFirst) {
-		if (a->isFolder && !b->isFolder)
-			return -1;
-		if (!a->isFolder && b->isFolder)
-			return 1;
-	}
-	return strcmp(a->name, b->name);
+    const ImGuiFD::DirEntry* a = (const ImGuiFD::DirEntry*)a_;
+    const ImGuiFD::DirEntry* b = (const ImGuiFD::DirEntry*)b_;
+    if (ImGuiFD::settings.showDirFirst) {
+        if (a->isFolder && !b->isFolder)
+            return -1;
+        if (!a->isFolder && b->isFolder)
+            return 1;
+    }
+    return strcmp(a->name, b->name);
 }
 
 
 ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEnts(const char* path_) {
-	ds::string path = makePathStrOSComply(path_);
+    ds::string path = makePathStrOSComply(path_);
 
-	ds::vector<DirEntry> entrys;
+    ds::vector<DirEntry> entrys;
 
-	auto hash = ImHashStr(path_);
+    auto hash = ImHashStr(path_);
 
 #ifdef _WIN32
-	if (strcmp(path_, "/") == 0) {
+    if (strcmp(path_, "/") == 0) {
         // handle drive letters
 
-		char buf[1024];
-		int byteLen = GetLogicalDriveStringsA(sizeof(buf), buf);
-		if (byteLen <= 0) {
+        char buf[1024];
+        int byteLen = GetLogicalDriveStringsA(sizeof(buf), buf);
+        if (byteLen <= 0) {
             return ds::Err(ds::format("GetLogicalDriveStringsA failed: %s", getErrorMsg(GetLastError()).c_str()));
-		}
+        }
 
-		size_t off = 0;
-		ImGuiID id = 0;
-		while (buf[off] != 0) {
-			entrys.push_back(DirEntry());
-			auto& entry = entrys.back();
+        size_t off = 0;
+        ImGuiID id = 0;
+        while (buf[off] != 0) {
+            entrys.push_back(DirEntry());
+            auto& entry = entrys.back();
 
-			ds::string name = ds::string(buf + off);
-			while (name.size() > 0 && name[name.size()-1] == '\\')
-				name = name.substr(0, name.size()-1);
+            ds::string name = ds::string(buf + off);
+            while (name.size() > 0 && name[name.size()-1] == '\\')
+                name = name.substr(0, name.size()-1);
 
-			entry.name = ImStrdup(name.c_str());
-			entry.dir = ImStrdup("/");
-			entry.path = ImStrdup((ds::string("/") + entry.name + "/").c_str());
+            entry.name = ImStrdup(name.c_str());
+            entry.dir = ImStrdup("/");
+            entry.path = ImStrdup((ds::string("/") + entry.name + "/").c_str());
 
-			entry.isFolder = true;
-			entry.id = id;
+            entry.isFolder = true;
+            entry.id = id;
 
-			statDirEnt(&entry);
+            statDirEnt(&entry);
 
-			off += strlen(buf+off)+1;
-			id++;
-		}
-	}
-	else {
+            off += strlen(buf+off)+1;
+            id++;
+        }
+    }
+    else {
         // handle normal folder
-		WIN32_FIND_DATAW fdata;
-		auto ret = FindFirstFileUtf8((path+"/*").c_str(), &fdata);
+        WIN32_FIND_DATAW fdata;
+        auto ret = FindFirstFileUtf8((path+"/*").c_str(), &fdata);
         if(ret.has_err()) return ret.error_prop();
-		HANDLE findH = ret.value();
+        HANDLE findH = ret.value();
 
-		size_t i = 0;
-		do {
+        size_t i = 0;
+        do {
             // skip . and ..
-			if (fdata.cFileName[0] == '.' && (fdata.cFileName[1] == 0 || (fdata.cFileName[1] == '.' && fdata.cFileName[2] == 0))) continue;
+            if (fdata.cFileName[0] == '.' && (fdata.cFileName[1] == 0 || (fdata.cFileName[1] == '.' && fdata.cFileName[2] == 0))) continue;
 
-			entrys.push_back(DirEntry());
+            entrys.push_back(DirEntry());
             DirEntry* entry = &entrys.back();
             entry->id = (ImGuiID)((hash<<16)+i);
  
@@ -291,71 +291,71 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEnts(const 
                     entry->error = ImStrdup(ret.error().c_str());
                 entry->name = backupWStrToUtf8Dup(fdata.cFileName);
             }
-			entry->dir = ImStrdup(path.c_str());
-			entry->isFolder = !!(fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
-			entry->path = combinePath(entry->dir, entry->name, entry->isFolder);
-			statDirEnt(entry);
+            entry->dir = ImStrdup(path.c_str());
+            entry->isFolder = !!(fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+            entry->path = combinePath(entry->dir, entry->name, entry->isFolder);
+            statDirEnt(entry);
 
-			i++;
-		} while (FindNextFileW(findH, &fdata) != 0);
+            i++;
+        } while (FindNextFileW(findH, &fdata) != 0);
         
         auto err = GetLastError();
 
         FindClose(findH);
 
-		if (err != ERROR_NO_MORE_FILES) {
-			return ds::Err(ds::format("FindNextFileW failed: %s", getErrorMsg(err).c_str()));
-		}
-	}
+        if (err != ERROR_NO_MORE_FILES) {
+            return ds::Err(ds::format("FindNextFileW failed: %s", getErrorMsg(err).c_str()));
+        }
+    }
 #else
 
-	dirent** namelist = 0; // pointer for array of dirent*
-	const int numRead = scandir(path.c_str(), &namelist, NULL, ::alphasort);
+    dirent** namelist = 0; // pointer for array of dirent*
+    const int numRead = scandir(path.c_str(), &namelist, NULL, ::alphasort);
 
-	if (namelist == NULL || numRead < 0) // couldn't read directory
-		return ds::Err(ds::format("scandir failed: %s", strerror(errno)));;
+    if (namelist == NULL || numRead < 0) // couldn't read directory
+        return ds::Err(ds::format("scandir failed: %s", strerror(errno)));;
 
-	
-	for (int i = 0; i<numRead; i++) {
-		dirent* de = namelist[i];
-		IM_ASSERT(de != NULL);
-		if (de->d_name[0] != '.' || (strcmp(de->d_name,".") != 0 && strcmp(de->d_name,"..") != 0)) {
-			entrys.push_back(DirEntry());
-			DirEntry* entry = &entrys.back();
-			entry->id = (hash<<16)+i;
-			entry->name = ImStrdup(de->d_name);
-			entry->dir = ImStrdup(path.c_str());
-			entry->isFolder = de->d_type == DT_DIR;
-			entry->path = combinePath(entry->dir, entry->name, entry->isFolder);
+    
+    for (int i = 0; i<numRead; i++) {
+        dirent* de = namelist[i];
+        IM_ASSERT(de != NULL);
+        if (de->d_name[0] != '.' || (strcmp(de->d_name,".") != 0 && strcmp(de->d_name,"..") != 0)) {
+            entrys.push_back(DirEntry());
+            DirEntry* entry = &entrys.back();
+            entry->id = (hash<<16)+i;
+            entry->name = ImStrdup(de->d_name);
+            entry->dir = ImStrdup(path.c_str());
+            entry->isFolder = de->d_type == DT_DIR;
+            entry->path = combinePath(entry->dir, entry->name, entry->isFolder);
 
-			statDirEnt(entry);
-		}
-		free(namelist[i]);
-	}
-	free(namelist);
+            statDirEnt(entry);
+        }
+        free(namelist[i]);
+    }
+    free(namelist);
 #endif
 
-	if(entrys.size() > 1)
-		qsort(&entrys[0], entrys.size(), sizeof(entrys[0]), cmpEntrys);
-	
-	return ds::Ok(move(entrys));
+    if(entrys.size() > 1)
+        qsort(&entrys[0], entrys.size(), sizeof(entrys[0]), cmpEntrys);
+    
+    return ds::Ok(move(entrys));
 }
 
 bool ImGuiFD::Native::isValidDir(const char* dir) {
-	struct stat info;
-	int ret = stat(makePathStrOSComply(dir).c_str(), &info);
-	return ret == 0 && (info.st_mode & S_IFDIR);
+    struct stat info;
+    int ret = stat(makePathStrOSComply(dir).c_str(), &info);
+    return ret == 0 && (info.st_mode & S_IFDIR);
 }
 
 bool ImGuiFD::Native::makeFolder(const char* path) {
-	int status;
+    int status;
 #if defined(_MSC_VER) || defined(__MINGW32__)
-	status = _mkdir(makePathStrOSComply(path).c_str());
+    status = _mkdir(makePathStrOSComply(path).c_str());
 #else
-	status = mkdir(path, S_IRWXU);
+    status = mkdir(path, S_IRWXU);
 #endif
 
-	return status == 0;
+    return status == 0;
 }
 
 ds::string ImGuiFD::Native::makePathStrOSComply(const char* path) {
@@ -365,10 +365,10 @@ ds::string ImGuiFD::Native::makePathStrOSComply(const char* path) {
     path++;
     IM_ASSERT(path[0] != '/');
 
-	size_t len = strlen(path);
-	if (len == 2 && path[len-1] == ':') {
-		return ds::string(path) + "/";
-	}
+    size_t len = strlen(path);
+    if (len == 2 && path[len-1] == ':') {
+        return ds::string(path) + "/";
+    }
 #endif
-	return path;
+    return path;
 }

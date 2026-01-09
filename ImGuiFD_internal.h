@@ -33,6 +33,15 @@ namespace ds {
         return static_cast<remove_reference<T>::type&&>(t);
     }
 
+    // https://stackoverflow.com/a/27501467
+    template<typename T> T&& forward(typename remove_reference<T>::type& param) noexcept { return static_cast<_identity<T>::type&&>(param); }
+    template<typename T> T&& forward(typename remove_reference<T>::type&& param) noexcept { return static_cast<_identity<T>::type&&>(param); }
+    template<class T> struct remove_cv { typedef T type; };
+    template<class T> struct remove_cv<const T> { typedef T type; };
+    template<class T> struct remove_cv<volatile T> { typedef T type; };
+    template<class T> struct remove_cv<const volatile T> { typedef T type; };
+    template<class T> struct remove_cvref { using type = remove_cv<typename remove_reference<T>::type>::type; };
+
     template<typename T>
     class vector{
     private:
@@ -769,35 +778,29 @@ namespace ds {
     
     template<typename OkT>
     class _ResultOk {
+    public:
         OkT t;
+        explicit _ResultOk(OkT&& v) : t(forward<OkT>(v)) {}
     };
     template<typename ErrT>
     class _ResultErr {
+    public:
         ErrT t;
+        explicit _ResultErr(ErrT&& v) : t(forward<ErrT>(v)) {}
     };
 
-    template<typename OkT>
-    static _ResultOk<OkT> Ok(const OkT& o) {
-        return _ResultOk(o);
+    template<typename T>
+    _ResultOk<typename remove_cvref<T>::type> Ok(T&& t) {
+        return _ResultOk<remove_cvref<T>::type>(forward<T>(t));
     }
-    template<typename OkT>
-    static _ResultOk<OkT> Ok(OkT&& o) noexcept {
-        return _ResultOk(move(o));
-    }
-    template<typename ErrT>
-    static _ResultErr<ErrT> Err(const ErrT& e) {
-        return _ResultErr(e);
-    }
-    template<typename ErrT>
-    static _ResultErr<ErrT> Err(ErrT&& e) noexcept {
-        return _ResultErr(move(e));
+    template<typename T>
+    _ResultErr<typename remove_cvref<T>::type> Err(T&& t) {
+        return _ResultErr<remove_cvref<T>::type>(forward<T>(t));
     }
     
     template<typename OkT, typename ErrT>
     class Result {
     public:
-        friend Res;
-
         bool has_value() const noexcept {
             return state == State_Ok;
         }
@@ -824,25 +827,17 @@ namespace ds {
             IM_ASSERT(state == State_Err);
             return err;
         }
-        _ResultErr<ErrT&&> error_prop() noexcept {
+        Err<ErrT> error_prop() noexcept {
             IM_ASSERT(state == State_Err);
-            return _ResultErr(move(err));
+            return Err<ErrT>(move(err));
         }
 
         template<typename OkT_>
-        Result(const _ResultOk<OkT_>& ok_) : state(State_Ok), ok(ok_.t) {
-
-        }
-        template<typename OkT_>
-        Result(_ResultOk<OkT_>&& ok_) : state(State_Ok), ok(move(ok_.t)) {
+        Result(_ResultOk<OkT_> ok_) : state(State_Ok), ok(move(ok_.t)) {
 
         }
         template<typename ErrT_>
-        Result(const _ResultErr<ErrT_>& err_) : state(State_Err), err(err_.t) {
-
-        }
-        template<typename ErrT_>
-        Result(_ResultErr<ErrT_>&& err_) : state(State_Err), err(move(err_.t)) {
+        Result(_ResultErr<ErrT_> err_) : state(State_Err), err(move(err_.t)) {
 
         }
 
@@ -895,7 +890,7 @@ namespace ds {
         enum State {
             State_Ok,
             State_Err
-        }
+        };
         State state;
         union {
             OkT ok;
