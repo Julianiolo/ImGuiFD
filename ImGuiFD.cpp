@@ -178,7 +178,8 @@ namespace ImGuiFD {
             ds::string* str = (ds::string*)data->UserData;
 
             if (data->EventFlag == ImGuiInputTextFlags_CallbackResize) {
-                str->resize(data->BufTextLen-1);
+                IM_ASSERT(data->Buf == str->c_str());
+                str->resize(data->BufTextLen);
                 data->Buf = str->data();
             }
             return 0;

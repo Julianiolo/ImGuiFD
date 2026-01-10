@@ -241,6 +241,8 @@ namespace ds {
         inline string() {
             
         }
+        inline string(const string&) = default;
+        inline string(string&&) noexcept = default;
         inline string(const char* s, const char* s_end = 0) {
             size_t len = s_end ? (s_end-s) : strlen(s);
             if(len > 0) {
@@ -251,11 +253,13 @@ namespace ds {
                 m_data.back() = 0;
             }
         }
+        string& operator=(const string&) = default;
+        string& operator=(string&&) noexcept = default;
 
-        inline char* data() {
+        inline char* data() noexcept {
             return m_data.size() == 0 ? &single_char : &m_data[0];
         }
-        inline const char* c_str() const {
+        inline const char* c_str() const noexcept {
             return m_data.size() == 0 ? &single_char : &m_data[0];
         }
 
@@ -267,10 +271,10 @@ namespace ds {
         }
 
         // this size does not include the null termination
-        inline size_t size() const {
+        inline size_t size() const noexcept {
             return m_data.size() > 0 ? (m_data.size()-1) : 0;
         }
-        inline size_t capacity() const {
+        inline size_t capacity() const noexcept {
             return m_data.capacity();
         }
 
@@ -284,18 +288,18 @@ namespace ds {
         }
 
 
-        inline char& operator[](size_t off) {
+        inline char& operator[](size_t off) noexcept {
             IM_ASSERT(off < m_data.size());
             return m_data[off];
         }
-        inline const char& operator[](size_t off) const {
+        inline const char& operator[](size_t off) const noexcept {
             IM_ASSERT(off < m_data.size());
             return m_data[off];
         }
-        inline const char* begin() const {
+        inline const char* begin() const noexcept {
             return m_data.size() == 0 ? &single_char : m_data.begin();
         }
-        inline const char* end() const {
+        inline const char* end() const noexcept {
             return m_data.size() == 0 ? &single_char+1 : m_data.end()-1;
         }
 
@@ -337,17 +341,17 @@ namespace ds {
             return move(out);
         }
 
-        inline bool operator==(const ds::string& s) const {
+        inline bool operator==(const ds::string& s) const noexcept {
             return strcmp(c_str(), s.c_str()) == 0;
         }
-        inline bool operator==(const char* s) const {
+        inline bool operator==(const char* s) const noexcept {
             return strcmp(c_str(), s) == 0;
         }
 
-        inline bool operator!=(const ds::string& s) const {
+        inline bool operator!=(const ds::string& s) const noexcept {
             return !(*this == s);
         }
-        inline bool operator!=(const char* s) const {
+        inline bool operator!=(const char* s) const noexcept {
             return !(*this == s);
         }
     };
@@ -427,7 +431,7 @@ namespace ds {
 
     // find value, if not found return (size_t)-1; compare needs to be a function like object with (const T& a, size_t ind_of_b) -> int
     template<typename T,typename CMP>
-    inline size_t binarySearchExclusive(size_t len, const T& value, const CMP& compare) {
+    inline size_t binarySearchExclusive(size_t len, const T& value, const CMP& compare) noexcept {
         if (len == 0)
             return (size_t)-1;
 
@@ -462,7 +466,7 @@ namespace ds {
 
     // find value, if not found return where to insert it; compare needs to be a function like object with (const T& a, size_t ind_of_b) -> int
     template<typename T,typename CMP>
-    inline size_t binarySearchInclusive(size_t len, const T& value, const CMP& compare) {
+    inline size_t binarySearchInclusive(size_t len, const T& value, const CMP& compare) noexcept {
         if (len == 0)
             return 0;
 
