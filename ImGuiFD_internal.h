@@ -1,28 +1,25 @@
 #ifndef __IMGUIFD_INTERNAL_H__
 #define __IMGUIFD_INTERNAL_H__
 
-#define IMGUI_DEFINE_MATH_OPERATORS 1
 #include "ImGuiFD.h"
 #include "imgui_internal.h"
+
+#include <time.h>
 
 #ifdef IMGUIFD_ENABLE_STL
 #include <functional>
 #include <vector>
 #include <string>
 #include <iterator>
+#include <type_traits>
 #endif
 
 namespace ds {
 #ifdef IMGUIFD_ENABLE_STL
-    template<typename T>
-    using move = std::move<T>;
-
-    template<typename T>
-    using vector = std::vector<T>;
-
-    using string = std::string;
-    template<typename T1, typename T2>
-    using pair = std::pair<T1, T2>;
+    template<class T> using remove_reference = typename std::remove_reference<T>;
+    using std::forward;
+    using std::move;
+    template<class T> using remove_cv = typename std::remove_cv<T>;
 #else
     template<class T> struct remove_reference { typedef T type; };
     template<class T> struct remove_reference<T&> { typedef T type; };
@@ -34,14 +31,24 @@ namespace ds {
     }
 
     // https://stackoverflow.com/a/27501467
-    template<typename T> T&& forward(typename remove_reference<T>::type& param) noexcept { return static_cast<_identity<T>::type&&>(param); }
-    template<typename T> T&& forward(typename remove_reference<T>::type&& param) noexcept { return static_cast<_identity<T>::type&&>(param); }
+    template<typename T> T&& forward(typename remove_reference<T>::type& param) noexcept { return static_cast<T&&>(param); }
+    template<typename T> T&& forward(typename remove_reference<T>::type&& param) noexcept { return static_cast<T&&>(param); }
     template<class T> struct remove_cv { typedef T type; };
     template<class T> struct remove_cv<const T> { typedef T type; };
     template<class T> struct remove_cv<volatile T> { typedef T type; };
     template<class T> struct remove_cv<const volatile T> { typedef T type; };
+#endif
     template<class T> struct remove_cvref { using type = remove_cv<typename remove_reference<T>::type>::type; };
 
+
+#ifdef IMGUIFD_ENABLE_STL
+    template<typename T>
+    using vector = std::vector<T>;
+
+    using string = std::string;
+    template<typename T1, typename T2>
+    using pair = std::pair<T1, T2>;
+#else
     template<typename T>
     class vector{
     private:
@@ -117,7 +124,7 @@ namespace ds {
         inline const T&     operator[](size_t i) const          { IM_ASSERT(i < Size); return Data[i]; }
 
         inline T*           data()                              { return Data; }
-        inline const T*     data()                              { return Data; }
+        inline const T*     data() const                        { return Data; }
         inline T*           begin()                             { return Data; }
         inline const T*     begin() const                       { return Data; }
         inline T*           end()                               { return Data + Size; }
@@ -232,9 +239,6 @@ namespace ds {
         vector<char> data;
         inline string() {
             
-        }
-        inline string(size_t size) {
-            data.resize(size, 0);
         }
         inline string(const char* s, const char* s_end = 0) : data((s_end ? (s_end-s) : strlen(s))+1) {
             for (size_t i = 0; i < data.size(); i++) {
@@ -358,38 +362,28 @@ namespace ds {
     }
 
     template<typename ... Args>
-    ds::string format(const char* str, Args ... args) { // https://stackoverflow.com/a/26221725
-        int size_i = snprintf(NULL, 0, str, args ...);
-        if (size_i <= 0) {
-            IM_ASSERT(0 && "error during string formatting");
-            return "";
-        }
-
-        size_i++; // add size for null term
-
-        ds::string s;
-        s.resize(size_i);
-
-        snprintf(s.data(), size_i, str, args ...);
-
-        return s;
-    }
-
-    template<typename ... Args>
     char* format_(const char* str, Args ... args) { // https://stackoverflow.com/a/26221725
         int size_i = snprintf(NULL, 0, str, args ...);
         if (size_i <= 0) {
             IM_ASSERT(0 && "error during string formatting");
-            return "";
+            return NULL;
         }
 
         size_i++; // add size for null term
 
-        char* out = IM_ALLOC(size_i);
+        char* out = (char*)IM_ALLOC(size_i);
 
         snprintf(out, size_i, str, args ...);
 
         return out;
+    }
+
+    template<typename ... Args>
+    ds::string format(const char* str, Args ... args) { // https://stackoverflow.com/a/26221725
+        char* s = format_(str, args ...);
+        ds::string out = s;
+        IM_FREE(s);
+        return move(out);
     }
 
     // find value, if not found return (size_t)-1; compare needs to be a function like object with (const T& a, size_t ind_of_b) -> int
@@ -780,22 +774,24 @@ namespace ds {
     class _ResultOk {
     public:
         OkT t;
-        explicit _ResultOk(OkT&& v) : t(forward<OkT>(v)) {}
+        template<typename U>
+        explicit _ResultOk(U&& v) : t(forward<U>(v)) {}
     };
     template<typename ErrT>
     class _ResultErr {
     public:
         ErrT t;
-        explicit _ResultErr(ErrT&& v) : t(forward<ErrT>(v)) {}
+        template<typename U>
+        explicit _ResultErr(U&& v) : t(forward<U>(v)) {}
     };
 
     template<typename T>
     _ResultOk<typename remove_cvref<T>::type> Ok(T&& t) {
-        return _ResultOk<remove_cvref<T>::type>(forward<T>(t));
+        return _ResultOk<typename remove_cvref<T>::type>(forward<T>(t));
     }
     template<typename T>
     _ResultErr<typename remove_cvref<T>::type> Err(T&& t) {
-        return _ResultErr<remove_cvref<T>::type>(forward<T>(t));
+        return _ResultErr<typename remove_cvref<T>::type>(forward<T>(t));
     }
     
     template<typename OkT, typename ErrT>
@@ -827,9 +823,9 @@ namespace ds {
             IM_ASSERT(state == State_Err);
             return err;
         }
-        Err<ErrT> error_prop() noexcept {
+        _ResultErr<ErrT> error_prop() noexcept {
             IM_ASSERT(state == State_Err);
-            return Err<ErrT>(move(err));
+            return _ResultErr<ErrT>(move(err));
         }
 
         template<typename OkT_>

@@ -37,47 +37,40 @@ ds::string getErrorMsg(DWORD errorCode) {
 
     //Free the Win32's string's buffer.
     LocalFree(messageBuffer);
+    return ds::move(errMsg);
 }
 
-static ds::vector<wchar_t> wstr_buf;
-
-static ds::ErrResult<wchar_t*> utf8ToWStrBuf(const char* str) {
-    const size_t str_len = strlen(str);
-    if (str_len > INT_MAX)
-        return ds::Err(ds::format("str too long: %zu", strlen));
-
-    const int size = MultiByteToWideChar(CP_UTF8, 0, str, (int)str_len, wstr_buf.data(), wstr_buf.size());
+static ds::ErrResult<ds::vector<wchar_t>> toWinPath(const char* str) {
+    const int size = MultiByteToWideChar(CP_UTF8, 0, str, -1, NULL, 0);
     if (size == 0) {
         return ds::Err(ds::format("utf8ToWStr failed: %s", getErrorMsg(GetLastError()).c_str()));
     }
-    if(size < wstr_buf.size()) {
-        return ds::Ok(wstr_buf.data());
-    }
 
-    wstr_buf.resize(size);
-    const int size2 = MultiByteToWideChar(CP_UTF8, 0, str, (int)str_len, wstr_buf.data(), wstr_buf.size());
-    if(size2 == 0 || size2 >= wstr_buf.size()) {
+    ds::vector<wchar_t> wstr(size);
+
+    const int size2 = MultiByteToWideChar(CP_UTF8, 0, str, -1, wstr.data(), wstr.size());
+    if(size2 == 0 || size2 > wstr.size()) {
         return ds::Err(ds::format("utf8ToWStr failed: %s", getErrorMsg(GetLastError()).c_str()));
     }
 
-    return ds::Ok(wstr_buf.data());
+    IM_ASSERT(wstr.size() > 0 && wstr[wstr.size()-1] == 0);
+
+    return ds::Ok(move(wstr));
 }
-static ds::ErrResult<ds::string> wStrToUtf8(const wchar_t* str) {
-    const size_t str_len = wcslen(str);
-
-    if (str_len > INT_MAX)
-        return ds::Err(ds::format("str too long: %zu", strlen));
-
+static ds::ErrResult<ds::string> fromWinPath(const wchar_t* str) {
     const int size = WideCharToMultiByte(CP_UTF8, WC_COMPOSITECHECK, str, -1, NULL, 0, NULL, NULL);
     if (size == 0) {
         return ds::Err(ds::format("utf8ToWStr failed: %s", getErrorMsg(GetLastError()).c_str()));
     }
 
-    ds::string result(size);
-    const int size2 = WideCharToMultiByte(CP_UTF8, WC_COMPOSITECHECK, str, -1, result.data.data(), result.size(), NULL, NULL);
-    if(size2 == 0 || size2 > result.size()) {
+    ds::string result;
+    result.data.resize(size);
+    const int size2 = WideCharToMultiByte(CP_UTF8, WC_COMPOSITECHECK, str, -1, result.data.data(), result.data.size(), NULL, NULL);
+    if(size2 == 0 || size2 > result.data.size()) {
         return ds::Err(ds::format("utf8ToWStr failed: %s", getErrorMsg(GetLastError()).c_str()));
     }
+
+    IM_ASSERT(result.data.size() > 0 && result.data[result.data.size()-1] == 0);
 
     return ds::Ok(ds::move(result));
 }
@@ -95,10 +88,11 @@ static char* backupWStrToUtf8Dup(const wchar_t* str) {
 }
 
 static ds::ErrResult<HANDLE> FindFirstFileUtf8(const char* path, _Out_ LPWIN32_FIND_DATAW lpFindFileData) {
-    auto res = utf8ToWStrBuf(path);
+
+    auto res = toWinPath(path);
     if(res.has_err())
         return res.error_prop();
-    wchar_t* path_w = res.value();
+    wchar_t* path_w = res.value().data();
     HANDLE findH = FindFirstFileW(path_w, lpFindFileData);
     if (findH == INVALID_HANDLE_VALUE) {  // error
         return ds::Err(ds::format("FindFirstFileW failed: %s", getErrorMsg(GetLastError()).c_str()));
@@ -126,10 +120,10 @@ ds::ErrResult<ds::string> ImGuiFD::Native::getAbsolutePath(const char* path_) {
 
     
 #ifdef _WIN32
-    auto res = utf8ToWStrBuf(path.c_str());
+    auto res = toWinPath(path.c_str());
     if(res.has_err())
         return res.error_prop();
-    wchar_t* path_w = res.value();
+    wchar_t* path_w = res.value().data();
 
     ds::vector<wchar_t> path_full(1024);
     DWORD ret = GetFullPathNameW(path_w, (DWORD)path_full.size(), path_full.data(), NULL);
@@ -142,8 +136,8 @@ ds::ErrResult<ds::string> ImGuiFD::Native::getAbsolutePath(const char* path_) {
             return ds::Err(ds::format("getAbsolutePath(%s) failed: %s", path_, getErrorMsg(GetLastError()).c_str()));
     }
 
-    auto out_ = wStrToUtf8(path_full.data());
-    if(out_.has_err());
+    auto out_ = fromWinPath(path_full.data());
+    if(out_.has_err())
         out_.error_prop();
     ds::string out = move(out_.value());
 #else
@@ -180,10 +174,10 @@ static void statDirEnt(ImGuiFD::DirEntry* entry) {
     entry->lastAccessed = st.st_atime;
     entry->lastModified = st.st_mtime;
 #elif defined(_WIN32)
-    auto res = utf8ToWStrBuf(path.c_str());
+    auto res = toWinPath(path.c_str());
     if(res.has_err())
         return;
-    wchar_t* path_w = res.value();
+    wchar_t* path_w = res.value().data();
 
     WIN32_FILE_ATTRIBUTE_DATA fInfo;
     if(GetFileAttributesExW(path_w, GetFileExInfoStandard,&fInfo) == 0) {
@@ -283,7 +277,7 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEnts(const 
             DirEntry* entry = &entrys.back();
             entry->id = (ImGuiID)((hash<<16)+i);
  
-            auto ret = wStrToUtf8(fdata.cFileName);
+            auto ret = fromWinPath(fdata.cFileName);
             if(ret.has_value()) {
                 entry->name = ImStrdup(ret.value().c_str());
             } else {
@@ -361,8 +355,8 @@ bool ImGuiFD::Native::makeFolder(const char* path) {
 ds::string ImGuiFD::Native::makePathStrOSComply(const char* path) {
 #ifdef _WIN32
     // remove root '/'
-    IM_ASSERT(path[0] == '/');
-    path++;
+    if(path[0] == '/')
+        path++;
     IM_ASSERT(path[0] != '/');
 
     size_t len = strlen(path);

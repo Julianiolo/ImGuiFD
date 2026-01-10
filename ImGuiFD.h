@@ -17,7 +17,7 @@
 
 #include "imgui.h"
 #include <stdint.h>
-#include <ctime>
+#include <math.h>
 
 /*
 
