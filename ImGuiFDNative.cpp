@@ -64,13 +64,13 @@ static ds::ErrResult<ds::string> fromWinPath(const wchar_t* str) {
     }
 
     ds::string result;
-    result.data.resize(size);
-    const int size2 = WideCharToMultiByte(CP_UTF8, WC_COMPOSITECHECK, str, -1, result.data.data(), result.data.size(), NULL, NULL);
-    if(size2 == 0 || size2 > result.data.size()) {
+    result.resize(size-1);
+    const int size2 = WideCharToMultiByte(CP_UTF8, WC_COMPOSITECHECK, str, -1, result.data(), result.size()+1, NULL, NULL);
+    if(size2 == 0 || size2 > result.size()+1) {
         return ds::Err(ds::format("utf8ToWStr failed: %s", getErrorMsg(GetLastError()).c_str()));
     }
 
-    IM_ASSERT(result.data.size() > 0 && result.data[result.data.size()-1] == 0);
+    IM_ASSERT(result.data()[result.size()] == 0);
 
     return ds::Ok(ds::move(result));
 }

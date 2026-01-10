@@ -12,6 +12,7 @@
 #include <string>
 #include <iterator>
 #include <type_traits>
+#include <utility>
 #endif
 
 namespace ds {
@@ -234,90 +235,106 @@ namespace ds {
     };
 
     class string {
+        char single_char = '\0';
+        vector<char> m_data;
     public:
-        static constexpr char null_char = '\0';
-        vector<char> data;
         inline string() {
             
         }
-        inline string(const char* s, const char* s_end = 0) : data((s_end ? (s_end-s) : strlen(s))+1) {
-            for (size_t i = 0; i < data.size(); i++) {
-                data[i] = s[i];
+        inline string(const char* s, const char* s_end = 0) {
+            size_t len = s_end ? (s_end-s) : strlen(s);
+            if(len > 0) {
+                m_data.resize(len+1);
+                for (size_t i = 0; i < len; i++) {
+                    m_data[i] = s[i];
+                }
+                m_data.back() = 0;
             }
-            data.back() = 0;
         }
 
+        inline char* data() {
+            return m_data.size() == 0 ? &single_char : &m_data[0];
+        }
         inline const char* c_str() const {
-            return data.size() == 0 ? &null_char : &data[0];
+            return m_data.size() == 0 ? &single_char : &m_data[0];
         }
 
-        inline string substr(ptrdiff_t from, ptrdiff_t to) const {
-            size_t from_ = from >= 0 ? from : len() + from;
-            size_t to_ = to >= 0 ? to : len() + to;
-            return ds::string(data.begin() + from_, data.begin() + to_);
+        inline string substr(size_t from, size_t to) const {
+            IM_ASSERT(from < size());
+            IM_ASSERT(to < size());
+            IM_ASSERT(from <= to);
+            return ds::string(begin() + from, begin() + to);
         }
 
-        inline size_t len() const {
-            return data.size() > 0 ? (data.size()-1) : 0;
-        }
+        // this size does not include the null termination
         inline size_t size() const {
-            return len();
+            return m_data.size() > 0 ? (m_data.size()-1) : 0;
         }
         inline size_t capacity() const {
-            return data.capacity();
+            return m_data.capacity();
         }
 
-        inline void resize(size_t s) {
-            data.resize(s + 1);
+        // this size does not include the null termination
+        inline void resize(size_t size_) {
+            m_data.resize(size_ + 1);
         }
-        inline void reserve(size_t s) {
-            data.reserve(s + 1);
+        // this size does not include the null termination
+        inline void reserve(size_t size_) {
+            m_data.reserve(size_ + 1);
         }
 
 
         inline char& operator[](size_t off) {
-            IM_ASSERT(off < data.size());
-            return data[off];
+            IM_ASSERT(off < m_data.size());
+            return m_data[off];
         }
         inline const char& operator[](size_t off) const {
-            IM_ASSERT(off < data.size());
-            return data[off];
+            IM_ASSERT(off < m_data.size());
+            return m_data[off];
+        }
+        inline const char* begin() const {
+            return m_data.size() == 0 ? &single_char : m_data.begin();
+        }
+        inline const char* end() const {
+            return m_data.size() == 0 ? &single_char+1 : m_data.end()-1;
         }
 
         inline string& operator+=(const ds::string& s) {
-            size_t startSize = len();
-            data.resize(len() + s.len() + 1);
+            size_t startSize = size();
+            m_data.resize(size() + s.size() + 1);
 
-            for (size_t i = 0; i < s.data.size(); i++) {
-                data[startSize+i] = s.data[i];
+            for (size_t i = 0; i < s.size(); i++) {
+                m_data[startSize+i] = s.begin()[i];
             }
+            m_data[m_data.size()-1] = 0;
             return *this;
         }
         inline string& operator+=(char c) {
-            if(data.size() == 0) {
-                data.resize(2);
-                data[0] = c;
-                data[1] = 0;
+            if(m_data.size() == 0) {
+                m_data.resize(2);
+                m_data[0] = c;
+                m_data[1] = 0;
             } else {
-                data.back() = c;
-                data.push_back(0);
+                m_data.back() = c;
+                m_data.push_back(0);
             }
             return *this;
         }
 
         inline string operator+(const ds::string& s) const {
             string out;
-            out.data.resize(len() + s.len() + 1);
+            out.m_data.resize(size() + s.size() + 1);
 
-            for (size_t i = 0; i < data.size(); i++) {
-                out.data[i] = data[i];
+            for (size_t i = 0; i < size(); i++) {
+                out.m_data[i] = m_data[i];
             }
 
-            size_t startSize = len();
-            for (size_t i = 0; i < s.data.size(); i++) {
-                out.data[startSize+i] = s.data[i];
+            size_t startSize = size();
+            for (size_t i = 0; i < s.size(); i++) {
+                out.m_data[startSize+i] = s.m_data[i];
             }
-            return out;
+            out.m_data[out.m_data.size()-1] = 0;
+            return move(out);
         }
 
         inline bool operator==(const ds::string& s) const {
@@ -361,9 +378,21 @@ namespace ds {
         return out;
     }
 
+    inline int own_snprintf(char* buf, size_t buf_size, const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        #ifdef IMGUI_USE_STB_SPRINTF
+        int w = stbsp_vsnprintf(buf, (int)buf_size, fmt, args);
+        #else
+        int w = vsnprintf(buf, buf_size, fmt, args);
+        #endif
+        va_end(args);
+        return w;
+    }
+
     template<typename ... Args>
     char* format_(const char* str, Args ... args) { // https://stackoverflow.com/a/26221725
-        int size_i = snprintf(NULL, 0, str, args ...);
+        int size_i = own_snprintf(NULL, 0, str, args ...);
         if (size_i <= 0) {
             IM_ASSERT(0 && "error during string formatting");
             return NULL;
@@ -373,16 +402,26 @@ namespace ds {
 
         char* out = (char*)IM_ALLOC(size_i);
 
-        snprintf(out, size_i, str, args ...);
+        own_snprintf(out, size_i, str, args ...);
 
         return out;
     }
 
     template<typename ... Args>
     ds::string format(const char* str, Args ... args) { // https://stackoverflow.com/a/26221725
-        char* s = format_(str, args ...);
-        ds::string out = s;
-        IM_FREE(s);
+        int size_i = own_snprintf(NULL, 0, str, args ...);
+        if (size_i <= 0) {
+            IM_ASSERT(0 && "error during string formatting");
+            return NULL;
+        }
+
+        size_i++; // add size for null term
+
+        ds::string out;
+        out.resize(size_i-1);
+
+        own_snprintf(out.data(), size_i, str, args ...);
+
         return move(out);
     }
 
@@ -775,23 +814,23 @@ namespace ds {
     public:
         OkT t;
         template<typename U>
-        explicit _ResultOk(U&& v) : t(forward<U>(v)) {}
+        explicit _ResultOk(U&& v) : t(ds::forward<U>(v)) {}
     };
     template<typename ErrT>
     class _ResultErr {
     public:
         ErrT t;
         template<typename U>
-        explicit _ResultErr(U&& v) : t(forward<U>(v)) {}
+        explicit _ResultErr(U&& v) : t(ds::forward<U>(v)) {}
     };
 
     template<typename T>
     _ResultOk<typename remove_cvref<T>::type> Ok(T&& t) {
-        return _ResultOk<typename remove_cvref<T>::type>(forward<T>(t));
+        return _ResultOk<typename remove_cvref<T>::type>(ds::forward<T>(t));
     }
     template<typename T>
     _ResultErr<typename remove_cvref<T>::type> Err(T&& t) {
-        return _ResultErr<typename remove_cvref<T>::type>(forward<T>(t));
+        return _ResultErr<typename remove_cvref<T>::type>(ds::forward<T>(t));
     }
     
     template<typename OkT, typename ErrT>
@@ -941,8 +980,6 @@ namespace ImGuiFD {
     };
 
     namespace Native {
-        constexpr size_t MAX_PATH_LEN = 1024;
-
         ds::ErrResult<ds::string> getAbsolutePath(const char* path);
         bool isValidDir(const char* dir);
 

@@ -178,14 +178,14 @@ namespace ImGuiFD {
             ds::string* str = (ds::string*)data->UserData;
 
             if (data->EventFlag == ImGuiInputTextFlags_CallbackResize) {
-                str->resize(data->BufTextLen);
-                data->Buf = (char*)str->c_str();
+                str->resize(data->BufTextLen-1);
+                data->Buf = str->data();
             }
             return 0;
         }
         bool InputTextString(const char* label, const char* hint, ds::string* str, ImGuiInputTextFlags flags = 0, const ImVec2& size = { 0,0 }) {
             return ImGui::InputTextEx(
-                label, hint, (char*)str->c_str(), (int)str->capacity(), 
+                label, hint, str->data(), (int)str->size()+1, 
                 size, flags | ImGuiInputTextFlags_CallbackResize, TextCallBack, str
             );
         }
