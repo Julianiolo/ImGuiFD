@@ -88,7 +88,6 @@ static char* backupWStrToUtf8Dup(const wchar_t* str) {
 }
 
 static ds::ErrResult<HANDLE> FindFirstFileUtf8(const char* path, _Out_ LPWIN32_FIND_DATAW lpFindFileData) {
-
     auto res = toWinPath(path);
     if(res.has_err())
         return res.error_prop();

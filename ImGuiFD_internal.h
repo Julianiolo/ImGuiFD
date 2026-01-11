@@ -134,7 +134,7 @@ namespace ds {
         inline const T&     front() const                       { IM_ASSERT(Size > 0); return Data[0]; }
         inline T&           back()                              { IM_ASSERT(Size > 0); return Data[Size - 1]; }
         inline const T&     back() const                        { IM_ASSERT(Size > 0); return Data[Size - 1]; }
-        inline void         swap(vector<T>& rhs)                { size_t rhs_size = rhs.Size; rhs.Size = Size; Size = rhs_size; size_t rhs_cap = rhs.Capacity; rhs.Capacity = Capacity; Capacity = rhs_cap; T* rhs_data = rhs.Data; rhs.Data = Data; Data = rhs_data; }
+        inline friend void  swap(vector<T>& lhs, vector<T>& rhs){ size_t rhs_size = rhs.Size; rhs.Size = lhs.Size; lhs.Size = rhs_size; size_t rhs_cap = rhs.Capacity; rhs.Capacity = lhs.Capacity; lhs.Capacity = rhs_cap; T* rhs_data = rhs.Data; rhs.Data = lhs.Data; lhs.Data = rhs_data; }
 
         inline size_t       _grow_capacity(size_t sz) const     { size_t new_capacity = Capacity ? (Capacity + Capacity / 2) : 8; return new_capacity > sz ? new_capacity : sz; }
         inline void         resize(size_t new_size)             { 
@@ -255,6 +255,12 @@ namespace ds {
         }
         string& operator=(const string&) = default;
         string& operator=(string&&) noexcept = default;
+        inline friend void swap(string& a, string& b) noexcept {
+            swap(a.m_data, b.m_data);
+            auto as = a.single_char;
+            a.single_char = b.single_char;
+            b.single_char = as;
+        }
 
         inline char* data() noexcept {
             return m_data.size() == 0 ? &single_char : &m_data[0];
@@ -812,30 +818,15 @@ namespace ds {
             arr = newVec;
         }
     };
-    
-    template<typename OkT>
-    class _ResultOk {
-    public:
-        OkT t;
-        template<typename U>
-        explicit _ResultOk(U&& v) : t(ds::forward<U>(v)) {}
-    };
-    template<typename ErrT>
-    class _ResultErr {
-    public:
-        ErrT t;
-        template<typename U>
-        explicit _ResultErr(U&& v) : t(ds::forward<U>(v)) {}
-    };
 
     template<typename T>
-    _ResultOk<typename remove_cvref<T>::type> Ok(T&& t) {
-        return _ResultOk<typename remove_cvref<T>::type>(ds::forward<T>(t));
-    }
+    struct _ResultOk {
+        T t;
+    };
     template<typename T>
-    _ResultErr<typename remove_cvref<T>::type> Err(T&& t) {
-        return _ResultErr<typename remove_cvref<T>::type>(ds::forward<T>(t));
-    }
+    struct _ResultErr {
+        T t;
+    };
     
     template<typename OkT, typename ErrT>
     class Result {
@@ -867,55 +858,44 @@ namespace ds {
             return err;
         }
         _ResultErr<ErrT> error_prop() noexcept {
+#ifdef IMGUIFD_ENABLE_STL
+            using std::swap;
+#endif
             IM_ASSERT(state == State_Err);
-            return _ResultErr<ErrT>(move(err));
+            // this should enable NRVO?
+            ErrT err_;
+            swap(err, err_);
+            return _ResultErr<ErrT>(err);
         }
 
         template<typename OkT_>
-        Result(_ResultOk<OkT_> ok_) : state(State_Ok), ok(move(ok_.t)) {
-
+        Result(_ResultOk<OkT_> ok_) : state(State_Ok) {
+            IM_PLACEMENT_NEW(&ok) OkT(ok_.t);
         }
         template<typename ErrT_>
-        Result(_ResultErr<ErrT_> err_) : state(State_Err), err(move(err_.t)) {
-
+        Result(_ResultErr<ErrT_> err_) : state(State_Err) {
+            IM_PLACEMENT_NEW(&err) ErrT(err_.t);
         }
 
         Result(const Result& o) : state(o.state)  {
+            state = o.state;
             if(state == State_Ok) {
-                ok = o.ok;
+                IM_PLACEMENT_NEW(&ok) OkT(o.ok);
             } else if(state == State_Err) {
-                err = o.err;
-            } else {
-                IM_ASSERT(0);
-            }
-        }
-        Result(Result&& o) noexcept : state(o.state)  {
-            if(state == State_Ok) {
-                ok = move(o.ok);
-            } else if(state == State_Err) {
-                err = move(o.err);
+                IM_PLACEMENT_NEW(&err) ErrT(o.err);
             } else {
                 IM_ASSERT(0);
             }
         }
         Result& operator=(const Result& o) {
+            IM_ASSERT(this != &o);
+
             clear();
             state = o.state;
             if(state == State_Ok) {
-                ok = o.ok;
+                IM_PLACEMENT_NEW(&ok) OkT(o.ok);
             } else if(state == State_Err) {
-                err = o.err;
-            } else {
-                IM_ASSERT(0);
-            }
-            return *this;
-        }
-        Result operator=(Result&& o) noexcept {
-            state = o.state;
-            if(state == State_Ok) {
-                ok = move(o.ok);
-            } else if(state == State_Err) {
-                err = move(o.err);
+                IM_PLACEMENT_NEW(&err) ErrT(o.err);
             } else {
                 IM_ASSERT(0);
             }
@@ -947,9 +927,26 @@ namespace ds {
         }
     };
 
+    template <typename T>
+    _ResultOk<T> Ok(const T& value) {
+        return _ResultOk<T>(value);
+    }
+
+    template <typename T>
+    _ResultErr<T> Err(const T& error) {
+        return _ResultErr<T>(error);
+    }
+
     template<typename T>
     using ErrResult = ds::Result<T, ds::string>;
 }
+
+#define IMGUIFD_RETURN_IF_ERR(expr) \
+    do { \
+        auto e = (expr); \
+        if(e.has_err()) \
+            return e.error_prop(); \
+    } while(0)
 
 namespace ImGuiFD {
     struct FDInstance {
