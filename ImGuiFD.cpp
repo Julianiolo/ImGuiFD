@@ -905,12 +905,14 @@ namespace ImGuiFD {
     }
 
     static void formatTime(char* buf, size_t bufSize, double unixTime) {
+        IM_ASSERT(bufSize > 0);
         time_t unixTime_ = (time_t)unixTime;
         tm* tm = localtime(&unixTime_);
         strftime(buf, bufSize, "%d.%m.%y %H:%M:%S", tm);
+        buf[bufSize-1] = 0;  // safety nullterm
     }
     static void formatSize(char* buf, size_t bufSize, uint64_t size) {
-        snprintf(buf, bufSize, "%" PRIu64 " Bytes", size);
+        ds::own_snprintf(buf, bufSize, "%" PRIu64 " Bytes", size);
     }
 
     static void OpenNow() {
