@@ -55,9 +55,9 @@ namespace ImGuiFD {
 
         const char* error = NULL;
 
-        const char* name = NULL;
         const char* dir = NULL;
         const char* path = NULL;
+        const char* name = NULL;  // this points inside of the path string
         bool isFolder = false;
 
         uint64_t size = (uint64_t)-1;

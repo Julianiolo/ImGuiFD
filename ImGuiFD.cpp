@@ -1770,21 +1770,21 @@ ImGuiFD::DirEntry::DirEntry(const DirEntry& src){
 }
 ImGuiFD::DirEntry::DirEntry(DirEntry&& src) noexcept : 
     id(src.id), error(src.error), 
-    name(src.name), dir(src.dir), path(src.path),
+    dir(src.dir), path(src.path), name(src.name),
     isFolder(src.isFolder),
     size(src.size), lastAccessed(src.lastAccessed), lastModified(src.lastModified)
 {
     src.id = (ImGuiID)-1;
-    src.error = src.name = src.dir = src.path = NULL;
+    src.error = src.dir = src.path = src.name = NULL;
 }
 ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(const DirEntry& src) {
     this->~DirEntry();
     
     id = src.id;
     error = src.error ? ImStrdup(src.error) : 0;
-     name  = src.name  ? ImStrdup(src.name)  : 0;
     dir   = src.dir   ? ImStrdup(src.dir)   : 0;
     path  = src.path  ? ImStrdup(src.path)  : 0;
+    name  = src.name  ? path + (src.name - src.path) : 0;
     isFolder = src.isFolder;
 
     size = src.size;
@@ -1798,9 +1798,9 @@ ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(DirEntry&& src) noexcept {
     
     id = src.id;
     error = src.error;
-     name  = src.name;
     dir   = src.dir;
     path  = src.path;
+    name  = src.name;
     isFolder = src.isFolder;
 
     size = src.size;
@@ -1808,17 +1808,19 @@ ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(DirEntry&& src) noexcept {
     lastModified = src.lastModified;
 
     src.id = (ImGuiID)-1;
-    src.error = src.name = src.dir = src.path = NULL;
+    src.error = src.dir = src.path = src.name = NULL;
 
     return *this;
 }
 ImGuiFD::DirEntry::~DirEntry() {
     IM_FREE((void*)error);
     error = NULL;
-    IM_FREE((void*)name);
-    name = NULL;
     IM_FREE((void*)dir );
     dir = NULL;
+    if(path != NULL) {
+        IM_ASSERT(name >= path);
+        IM_ASSERT(name <= path + strlen(path));
+    }
     IM_FREE((void*)path);
     path = NULL;
 }

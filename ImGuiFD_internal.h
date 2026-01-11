@@ -15,6 +15,21 @@
 #include <utility>
 #endif
 
+inline void* imfd_alloc(size_t s) {
+    auto p = IM_ALLOC(s);
+    printf("alloc: %p (%4zu)\n", p, s);
+    return p;
+}
+inline void imfd_free(void* p) {
+    printf(" free: %p \n", p);
+    IM_FREE(p);
+}
+
+#define IMFD_ALLOC(_x_) imfd_alloc(_x_)//IM_ALLOC(_x_)
+#define IMFD_FREE(_x_) imfd_free(_x_)//IM_FREE(_x_)
+
+#define IMFD_USE_MOVE 1
+
 namespace ds {
 #ifdef IMGUIFD_ENABLE_STL
     template<class T> using remove_reference = typename std::remove_reference<T>;
@@ -27,8 +42,8 @@ namespace ds {
     template<class T> struct remove_reference<T&&> { typedef T type; };
 
     template<typename T>
-    remove_reference<T>::type&& move(T&& t) noexcept {
-        return static_cast<remove_reference<T>::type&&>(t);
+    typename remove_reference<T>::type&& move(T&& t) noexcept {
+        return static_cast<typename remove_reference<T>::type&&>(t);
     }
 
     // https://stackoverflow.com/a/27501467
@@ -39,7 +54,7 @@ namespace ds {
     template<class T> struct remove_cv<volatile T> { typedef T type; };
     template<class T> struct remove_cv<const volatile T> { typedef T type; };
 #endif
-    template<class T> struct remove_cvref { using type = remove_cv<typename remove_reference<T>::type>::type; };
+    template<class T> struct remove_cvref { using type = typename remove_cv<typename remove_reference<T>::type>::type; };
 
 
 #ifdef IMGUIFD_ENABLE_STL
@@ -112,7 +127,7 @@ namespace ds {
                 for (size_t n = 0; n < Size; n++) 
                     Data[n].~T(); 
                 Size = Capacity = 0; 
-                IM_FREE(Data); Data = NULL; 
+                IMFD_FREE(Data); Data = NULL; 
             }
         }
 
@@ -135,6 +150,11 @@ namespace ds {
         inline T&           back()                              { IM_ASSERT(Size > 0); return Data[Size - 1]; }
         inline const T&     back() const                        { IM_ASSERT(Size > 0); return Data[Size - 1]; }
         inline friend void  swap(vector<T>& lhs, vector<T>& rhs){ size_t rhs_size = rhs.Size; rhs.Size = lhs.Size; lhs.Size = rhs_size; size_t rhs_cap = rhs.Capacity; rhs.Capacity = lhs.Capacity; lhs.Capacity = rhs_cap; T* rhs_data = rhs.Data; rhs.Data = lhs.Data; lhs.Data = rhs_data; }
+        inline friend vector<T> move_to_new(vector<T>& v) {
+            vector<T> o;
+            
+            return o;
+        }
 
         inline size_t       _grow_capacity(size_t sz) const     { size_t new_capacity = Capacity ? (Capacity + Capacity / 2) : 8; return new_capacity > sz ? new_capacity : sz; }
         inline void         resize(size_t new_size)             { 
@@ -156,14 +176,14 @@ namespace ds {
         inline void         reserve(size_t new_capacity)        { 
             if (new_capacity <= Capacity) 
                 return; 
-            T* new_data = (T*)IM_ALLOC((size_t)new_capacity * sizeof(T)); 
+            T* new_data = (T*)IMFD_ALLOC((size_t)new_capacity * sizeof(T)); 
             if (Data) { 
                 //memcpy(new_data, Data, (size_t)Size * sizeof(T));
                 for(size_t i = 0; i < Size; i++) {
                     IM_PLACEMENT_NEW(&new_data[i]) T((T&&)Data[i]);
                     Data[i].~T();
                 }
-                IM_FREE(Data);
+                IMFD_FREE(Data);
             }
             Data = new_data; 
             Capacity = new_capacity;
@@ -174,6 +194,12 @@ namespace ds {
             if (Size == Capacity) 
                 reserve(_grow_capacity(Size + 1)); 
             IM_PLACEMENT_NEW(&Data[Size]) T(v); 
+            Size++; 
+        }
+        inline void         push_back(T&& v)              { 
+            if (Size == Capacity) 
+                reserve(_grow_capacity(Size + 1)); 
+            IM_PLACEMENT_NEW(&Data[Size]) T(move(v)); 
             Size++; 
         }
         inline void         pop_back()                          { IM_ASSERT(Size > 0); Size--; }
@@ -212,7 +238,24 @@ namespace ds {
                 }
             }
                  
-            IM_PLACEMENT_NEW(&Data[off]) T(v); Size++; 
+            IM_PLACEMENT_NEW(&Data[off]) T(v);
+            Size++; 
+            return Data + off; 
+        }
+        inline T*           insert(const T* it, T&& v)     { 
+            IM_ASSERT(it >= Data && it <= Data + Size); 
+            const ptrdiff_t off = it - Data; 
+            if (Size == Capacity) 
+                reserve(_grow_capacity(Size + 1)); 
+            if (off < (ptrdiff_t)Size) {
+                //memmove(Data + off + 1, Data + off, ((size_t)Size - (size_t)off) * sizeof(T));
+                for(size_t i = off; i+1 < Size; i++) {
+                    Data[i+1] = Data[i];
+                }
+            }
+                 
+            IM_PLACEMENT_NEW(&Data[off]) T(move(v));
+            Size++; 
             return Data + off; 
         }
         inline bool         contains(const T& v) const          { const T* data = Data;  const T* data_end = Data + Size; while (data < data_end) if (*data++ == v) return true; return false; }
@@ -309,6 +352,17 @@ namespace ds {
             return m_data.size() == 0 ? &single_char+1 : m_data.end()-1;
         }
 
+        inline string& operator+=(const char* s) {
+            const size_t len = strlen(s);
+            size_t startSize = size();
+            m_data.resize(size() + len + 1);
+
+            for (size_t i = 0; i < len; i++) {
+                m_data[startSize+i] = s[i];
+            }
+            m_data[m_data.size()-1] = 0;
+            return *this;
+        }
         inline string& operator+=(const ds::string& s) {
             size_t startSize = size();
             m_data.resize(size() + s.size() + 1);
@@ -410,7 +464,7 @@ namespace ds {
 
         size_i++; // add size for null term
 
-        char* out = (char*)IM_ALLOC(size_i);
+        char* out = (char*)IMFD_ALLOC(size_i);
 
         own_snprintf(out, size_i, str, args ...);
 
@@ -539,6 +593,11 @@ namespace ds {
         inline T& insert(ImGuiID id, const T& t) {
             size_t ind = getIndInsert(id);
             data.insert(data.begin() + ind, { id,t });
+            return data[ind].second;
+        }
+        inline T& insert(ImGuiID id, T&& t) {
+            size_t ind = getIndInsert(id);
+            data.insert(data.begin() + ind, { id,move(t) });
             return data[ind].second;
         }
 
@@ -716,7 +775,7 @@ namespace ds {
         }
 
         void push(const T& t) {
-            arr[start] = (T*)IM_ALLOC(sizeof(t));
+            arr[start] = (T*)IMFD_ALLOC(sizeof(t));
             IM_PLACEMENT_NEW(arr[start]) T(t);
             start = (start+1)%len;
             if (currSize < len) {
@@ -742,7 +801,7 @@ namespace ds {
                 }
 
                 arr[start]->~T();
-                IM_FREE(arr[start]);
+                IMFD_FREE(arr[start]);
                 arr[start] = nullptr;
 
                 return true;
@@ -776,7 +835,7 @@ namespace ds {
             for (size_t i = 0; i < len; i++) {
                 if (arr[i] != nullptr) {
                     arr[i]->~T();
-                    IM_FREE(arr[i]);
+                    IMFD_FREE(arr[i]);
                     arr[i] = nullptr;
                 }
             }
@@ -809,7 +868,7 @@ namespace ds {
                 }
                 for (size_t i = newSize; i < len; i++) {
                     arr[i]->~T();
-                    IM_FREE(arr[i]);
+                    IMFD_FREE(arr[i]);
                 }
                 start = 0;
             }
@@ -819,13 +878,22 @@ namespace ds {
         }
     };
 
+
     template<typename T>
     struct _ResultOk {
         T t;
+#if IMFD_USE_MOVE
+        template<typename U>
+        explicit _ResultOk(U&& v) : t(ds::forward<U>(v)) {}
+#endif
     };
     template<typename T>
     struct _ResultErr {
         T t;
+#if IMFD_USE_MOVE
+        template<typename U>
+        explicit _ResultErr(U&& v) : t(ds::forward<U>(v)) {}
+#endif
     };
     
     template<typename OkT, typename ErrT>
@@ -858,16 +926,30 @@ namespace ds {
             return err;
         }
         _ResultErr<ErrT> error_prop() noexcept {
+            IM_ASSERT(state == State_Err);
+#if IMFD_USE_MOVE
+            return _ResultErr<ErrT>(move(err));
+#else
 #ifdef IMGUIFD_ENABLE_STL
             using std::swap;
 #endif
-            IM_ASSERT(state == State_Err);
             // this should enable NRVO?
             ErrT err_;
             swap(err, err_);
             return _ResultErr<ErrT>(err);
+#endif
         }
 
+#if IMFD_USE_MOVE
+        template<typename OkT_>
+        Result(_ResultOk<OkT_> ok_) : state(State_Ok) {
+            IM_PLACEMENT_NEW(&ok) OkT(move(ok_.t));
+        }
+        template<typename ErrT_>
+        Result(_ResultErr<ErrT_> err_) : state(State_Err) {
+            IM_PLACEMENT_NEW(&err) ErrT(move(err_.t));
+        }
+#else
         template<typename OkT_>
         Result(_ResultOk<OkT_> ok_) : state(State_Ok) {
             IM_PLACEMENT_NEW(&ok) OkT(ok_.t);
@@ -876,6 +958,7 @@ namespace ds {
         Result(_ResultErr<ErrT_> err_) : state(State_Err) {
             IM_PLACEMENT_NEW(&err) ErrT(err_.t);
         }
+#endif
 
         Result(const Result& o) : state(o.state)  {
             state = o.state;
@@ -927,6 +1010,16 @@ namespace ds {
         }
     };
 
+#if IMFD_USE_MOVE
+    template <typename T>
+    _ResultOk<typename remove_cvref<T>::type> Ok(T&& t) {
+        return _ResultOk<typename remove_cvref<T>::type>(ds::forward<T>(t));
+    }
+    template <typename T>
+    _ResultErr<typename remove_cvref<T>::type> Err(T&& t) {
+        return _ResultErr<typename remove_cvref<T>::type>(ds::forward<T>(t));
+    }
+#else
     template <typename T>
     _ResultOk<T> Ok(const T& value) {
         return _ResultOk<T>(value);
@@ -936,6 +1029,7 @@ namespace ds {
     _ResultErr<T> Err(const T& error) {
         return _ResultErr<T>(error);
     }
+#endif
 
     template<typename T>
     using ErrResult = ds::Result<T, ds::string>;
