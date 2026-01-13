@@ -15,6 +15,7 @@
     #include <dirent.h>
     #include <stdlib.h>
     #include <limits.h>
+    #include <errno.h>
 
     #define GETCWD getcwd
 #endif
@@ -307,8 +308,8 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEnts(const 
                     entry->error = ImStrdup(ret.error().c_str());
                 name = backupWStrToUtf8_Buf(fdata.cFileName);
             }
-            entry->dir = ImStrdup(path.c_str());
             entry->isFolder = !!(fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+            entry->dir = ImStrdup(path.c_str());
             entry->path = combinePath(entry->dir, name, entry->isFolder);
             entry->name = entry->path + strlen(entry->dir) + 1;
             statDirEnt(entry);
@@ -340,10 +341,10 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEnts(const 
             entrys.push_back(DirEntry());
             DirEntry* entry = &entrys.back();
             entry->id = (hash<<16)+i;
-            entry->name = ImStrdup(de->d_name);
-            entry->dir = ImStrdup(path.c_str());
             entry->isFolder = de->d_type == DT_DIR;
-            entry->path = combinePath(entry->dir, entry->name, entry->isFolder);
+            entry->dir = ImStrdup(path.c_str());
+            entry->path = combinePath(entry->dir, de->d_name, entry->isFolder);
+            entry->name = entry->path + strlen(entry->dir) + 1;
 
             statDirEnt(entry);
         }
