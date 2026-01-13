@@ -1,4 +1,5 @@
 #define IMGUI_DEFINE_MATH_OPERATORS 1
+#include <imgui_internal.h>
 #include "ImGuiFD.h"
 #include "ImGuiFD_internal.h"
 
@@ -107,31 +108,6 @@ namespace ImGuiFD {
 
             return out;
         }
-        ds::vector<ds::string> splitPath(const char* path) {
-            if (strlen(path) == 1 && path[0] == '/') {
-                ds::vector<ds::string> out;
-                out.push_back("/");
-                return out;
-            }
-                
-
-            size_t len = strlen(path);
-            ds::vector<ds::string> out;
-            size_t last = 0;
-
-            if (path[0] == '/') {
-                out.push_back("/");
-                last = 1;
-            }
-
-            for (size_t i = last; i < len; i++) {
-                if (path[i] == '/') {
-                    out.push_back(ds::string(path + last, path + i));
-                    last = i + 1;
-                }
-            }
-            return out;
-        }
         ds::vector<ds::pair<ds::string, ds::string>> splitInput(const char* str, const char* dir) {
             size_t len = strlen(str);
             ds::string dirStr = dir;
@@ -173,8 +149,10 @@ namespace ImGuiFD {
 
             return out;
         }
+    }
 
-        int TextCallBack(ImGuiInputTextCallbackData* data) {
+    namespace ImGuiExt {
+        static int TextCallBack(ImGuiInputTextCallbackData* data) {
             ds::string* str = (ds::string*)data->UserData;
 
             if (data->EventFlag == ImGuiInputTextFlags_CallbackResize) {
@@ -184,11 +162,103 @@ namespace ImGuiFD {
             }
             return 0;
         }
-        bool InputTextString(const char* label, const char* hint, ds::string* str, ImGuiInputTextFlags flags = 0, const ImVec2& size = { 0,0 }) {
+        static bool InputTextString(const char* label, const char* hint, ds::string* str, ImGuiInputTextFlags flags = 0, const ImVec2& size = { 0,0 }) {
             return ImGui::InputTextEx(
                 label, hint, str->data(), (int)str->size()+1, 
                 size, flags | ImGuiInputTextFlags_CallbackResize, TextCallBack, str
             );
+        }
+        static ImRect TextWrappedCentered(const char* text, float maxWidth, int maxLines = -1) {
+            ImGuiContext& g = *GImGui;
+            ImVec2 cursorStart = ImGui::GetCursorPos();
+
+            size_t len = strlen(text);
+
+            const char* s = text;
+            int lineInd = 0;
+
+            ImVec2 minPos(10000,10000), maxPos(-10000,-10000);
+
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, { 0,0 });
+            while (s < text + len && lineInd < maxLines) {
+                const char* wrap = g.Font->CalcWordWrapPositionA(g.FontBakedScale, s, text+len, maxWidth);
+                
+                ImVec2 lineSize;
+                if (wrap == s || lineInd+1 == maxLines) {
+                    lineSize = g.Font->CalcTextSizeA(g.FontSize, maxWidth, 0, s, text + len, &wrap);
+                }
+                else {
+                    lineSize = ImGui::CalcTextSize(s, wrap);
+                }
+
+                // Wrapping skips upcoming blanks
+                while (s < text+len)
+                {
+                    const char c = *s;
+                    if (ImCharIsBlankA(c)) { s++; } else if (c == '\n') { s++; break; } else { break; }
+                }
+
+                {
+                    const ImVec2 cursorPos = cursorStart + ImVec2{ maxWidth / 2 - lineSize.x / 2, ImGui::GetTextLineHeightWithSpacing() * lineInd };
+                    if (cursorPos.x < minPos.x) minPos.x = cursorPos.x;
+                    if (cursorPos.y < minPos.y) minPos.y = cursorPos.y;
+
+                    if ((cursorPos+lineSize).x > maxPos.x) maxPos.x = (cursorPos+lineSize).x;
+                    if ((cursorPos+lineSize).y > maxPos.y) maxPos.y = (cursorPos+lineSize).y;
+
+
+                    ImGui::SetCursorPos(cursorPos);
+                    if (lineInd + 1 >= maxLines && wrap < text+len) {
+                        ImGui::RenderTextEllipsis(ImGui::GetWindowDrawList(), ImGui::GetCursorScreenPos(), ImGui::GetCursorScreenPos() + lineSize + ImVec2{0,g.Style.FramePadding.y}, ImGui::GetCursorScreenPos().x + maxWidth, s, text + len, 0);
+                    }
+                    else {
+                        ImGui::TextUnformatted(s, wrap);
+                    }
+                }
+                
+
+                s = wrap;
+                lineInd++;
+            }
+            ImGui::PopStyleVar();
+
+            // convert to screen space
+            minPos += ImGui::GetWindowPos() - ImVec2{ImGui::GetScrollX(), ImGui::GetScrollY()};
+            maxPos += ImGui::GetWindowPos() - ImVec2{ImGui::GetScrollX(), ImGui::GetScrollY()};
+
+            return ImRect(minPos, maxPos);
+        }
+        static bool ComboHorizontal(const char* str_id, size_t* v, const char** labels, size_t labelCnt, const ImVec2& size_arg = { 0,0 }) {
+            ImGui::PushID(str_id);
+
+            ImVec2 avail = ImGui::GetContentRegionAvail();
+            ImVec2 size = ImVec2(size_arg.x != 0 ? size_arg.x : avail.x, size_arg.y != 0 ? size_arg.y : ImGui::GetFrameHeight());
+
+            ImVec2 borderPad = { 1,1 };
+            ImRect rec(ImGui::GetCursorScreenPos() - borderPad, ImGui::GetCursorScreenPos() + size + borderPad);
+            ImGui::GetWindowDrawList()->AddRectFilled(rec.Min, rec.Max, ImColor(ImGui::GetStyleColorVec4(ImGuiCol_ChildBg)));
+
+            //ImGui::A();
+            ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset = 0;
+
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, { 0,0 });
+            ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, {0.5,0.5});
+            bool changed = false;
+            for (size_t i = 0; i < labelCnt; i++) {
+                if (i > 0)
+                    ImGui::SameLine();
+                if (ImGui::Selectable(labels[i], *v == i, ImGuiSelectableFlags_NoPadWithHalfSpacing, ImVec2(size.x / labelCnt, size.y))) {
+                    *v = i;
+                    changed = true;
+                }
+            }
+            ImGui::PopStyleVar();
+            ImGui::PopStyleVar();
+
+            ImGui::GetWindowDrawList()->AddRect(rec.Min, rec.Max, ImColor(ImGui::GetStyleColorVec4(ImGuiCol_Border)));
+
+            ImGui::PopID();
+            return changed;
         }
     }
 
@@ -274,31 +344,31 @@ namespace ImGuiFD {
         return (int)a.id-(int)b.id;
     }
 
-    class EditablePath {
+    // this always represents absolute paths
+    class EditableDirPath {
     public:
         ds::vector<ds::string> parts;
 
-        EditablePath(const char* path) : parts(utils::splitPath(path)) {
+        EditableDirPath(const char* path) : parts(splitAbsolutePath(path)) {
             
         }
 
-        void setToStr(const char* rawPath) {
+        void setToPath(const char* rawPath) {
             ds::string rawPathFix = utils::fixDirStr(rawPath).c_str(); // fixes weird behaviour on win when e.g. setting to "D:"
-            parts = utils::splitPath(
+            parts = splitAbsolutePath(
                 utils::fixDirStr(
                     Native::getAbsolutePath(rawPathFix.c_str()).value().c_str()  // TODO error handling
                 ).c_str()
             );
         }
 
-        bool setBackToInd(size_t ind) {
-            if (ind + 1 != parts.size()) {
-                parts.resize(ind+1);
-                return true;
-            }
-            return false;
+        void setBackToInd(size_t ind) {
+            IMFD_ASSERT_PARANOID(ind < parts.size());
+            IMFD_ASSERT_PARANOID(ind+1 != parts.size() && "setBackToInd call does not achieve anything");
+            parts.resize(ind+1);
         }
 
+        // go to parent dir
         bool goUp() {
             if (parts.size() > 1) {
                 parts.resize(parts.size() - 1);
@@ -308,29 +378,61 @@ namespace ImGuiFD {
         }
 
         void moveDownTo(const char* folder) {
+            IM_ASSERT_PARANOID(strchr(folder, '/') == NULL && strchr(folder, ds::preffered_separator) == NULL);
             parts.push_back(folder);
         }
 
         ds::string toString() {
+            IMFD_ASSERT_PARANOID(parts.size() == 0 || parts[0] == "/");
             size_t len = 0;
-            for (size_t i = 0; i < parts.size(); i++) {
-                if (i > 0)
-                    len++; // +1 len for '/'
+            #if IMFD_UNIX_PATHS
+            len += 1;  // unix absolute paths always start with '/'
+            #endif
+            // skip first entry, since it is always "/", and we don't want to add that on windows
+            for (size_t i = 1; i < parts.size(); i++) {
                 len += parts[i].size();
+                len++; // +1 len for '/'
             }
+
             ds::string out;
             out.reserve(len);
-            if(parts.size() == 1 && parts[0] == "/") {
-                out = "/";
+            #if IMFD_UNIX_PATHS
+            out += ds::preffered_separator;
+            #endif
+
+            for (size_t i = 1; i < parts.size(); i++) {
+                out += parts[i];
+                out += ds::preffered_separator;
             }
-            else {
-                for (size_t i = 0; i < parts.size(); i++) {
-                    out += parts[i];
-                    out += "/";
+            IMFD_ASSERT_PARANOID(out.size() == len);
+            return ds::move(out);
+        }
+    private:
+        ds::vector<ds::string> splitAbsolutePath(const char* path) {
+            IMFD_ASSERT_PARANOID(path != NULL);
+            IMFD_ASSERT_PARANOID(Native::isAbsolutePath(path));
+
+            ds::vector<ds::string> out;
+            out.push_back("/");  // always add root
+
+            size_t last = 0;
+            #if IMFD_UNIX_PATHS
+            // absolute paths always begin with '/' so we always have to skip that since we already added the root '/'
+            IMFD_ASSERT_PARANOID(path[0] == '/');
+            last++;
+            #else
+
+            #endif
+
+            size_t len = strlen(path);
+
+            for (size_t i = last; i < len; i++) {
+                if (path[i] == '/') {
+                    out.push_back(ds::string(path + last, path + i));
+                    last = i + 1;
                 }
             }
-            
-            return utils::fixDirStr(out.c_str());
+            return ds::move(out);
         }
     };
 
@@ -504,7 +606,7 @@ namespace ImGuiFD {
 
         bool draw(float width = -1) {
             ImGui::PushItemWidth(width);
-            bool ret = utils::InputTextString("##Search", "Search", &searchText);
+            bool ret = ImGuiExt::InputTextString("##Search", "Search", &searchText);
             ImGui::PopItemWidth();
             return ret;
         }
@@ -555,7 +657,7 @@ namespace ImGuiFD {
         ImGuiID id;
         
         ds::string path;
-        EditablePath currentPath;
+        EditableDirPath currentPath;
         ds::string oldPath;
         ds::string couldntLoadPath;
 
@@ -684,7 +786,7 @@ namespace ImGuiFD {
             undoStack.push(currentPath.toString());
             redoStack.clear();
 
-            currentPath.setToStr(str);
+            currentPath.setToPath(str);
 
             needsEntrysUpdate = true;
         }
@@ -696,11 +798,14 @@ namespace ImGuiFD {
                 needsEntrysUpdate = true;
         }
         void dirShrinkTo(size_t ind) {
+            IM_ASSERT(ind < currentPath.parts.size());
+            if(ind+1 == currentPath.parts.size())
+                return;  // already on that path
             undoStack.push(currentPath.toString());
             redoStack.clear();
 
-            if (currentPath.setBackToInd(ind))
-                needsEntrysUpdate = true;
+            currentPath.setBackToInd(ind);
+            needsEntrysUpdate = true;
         }
         void dirMoveDownInto(const char* folder) {
             undoStack.push(currentPath.toString());
@@ -759,7 +864,7 @@ namespace ImGuiFD {
             else {
                 showLoadErrorMsg = true;
                 couldntLoadPath = curDirStr;
-                currentPath.setToStr(oldPath.c_str());
+                currentPath.setToPath(oldPath.c_str());
             }
         }
         void updateFiltering() {
@@ -773,7 +878,7 @@ namespace ImGuiFD {
             ds::string s;
             if (undoStack.pop(&s)) {
                 redoStack.push(currentPath.toString());
-                currentPath.setToStr(s.c_str());
+                currentPath.setToPath(s.c_str());
 
                 needsEntrysUpdate = true;
             }
@@ -785,7 +890,7 @@ namespace ImGuiFD {
             ds::string s;
             if (redoStack.pop(&s)) {
                 undoStack.push(currentPath.toString());
-                currentPath.setToStr(s.c_str());
+                currentPath.setToPath(s.c_str());
 
                 needsEntrysUpdate = true;
             }
@@ -810,99 +915,6 @@ namespace ImGuiFD {
 
     FileDialog* fd = 0;
     ds::map<FileDialog> openDialogs;
-
-    static ImRect TextWrappedCentered(const char* text, float maxWidth, int maxLines = -1) {
-        ImGuiContext& g = *GImGui;
-        ImVec2 cursorStart = ImGui::GetCursorPos();
-
-        size_t len = strlen(text);
-
-        const char* s = text;
-        int lineInd = 0;
-
-        ImVec2 minPos(10000,10000), maxPos(-10000,-10000);
-
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, { 0,0 });
-        while (s < text + len && lineInd < maxLines) {
-            const char* wrap = g.Font->CalcWordWrapPositionA(g.FontBakedScale, s, text+len, maxWidth);
-            
-            ImVec2 lineSize;
-            if (wrap == s || lineInd+1 == maxLines) {
-                lineSize = g.Font->CalcTextSizeA(g.FontSize, maxWidth, 0, s, text + len, &wrap);
-            }
-            else {
-                lineSize = ImGui::CalcTextSize(s, wrap);
-            }
-
-            // Wrapping skips upcoming blanks
-            while (s < text+len)
-            {
-                const char c = *s;
-                if (ImCharIsBlankA(c)) { s++; } else if (c == '\n') { s++; break; } else { break; }
-            }
-
-            {
-                const ImVec2 cursorPos = cursorStart + ImVec2{ maxWidth / 2 - lineSize.x / 2, ImGui::GetTextLineHeightWithSpacing() * lineInd };
-                if (cursorPos.x < minPos.x) minPos.x = cursorPos.x;
-                if (cursorPos.y < minPos.y) minPos.y = cursorPos.y;
-
-                if ((cursorPos+lineSize).x > maxPos.x) maxPos.x = (cursorPos+lineSize).x;
-                if ((cursorPos+lineSize).y > maxPos.y) maxPos.y = (cursorPos+lineSize).y;
-
-
-                ImGui::SetCursorPos(cursorPos);
-                if (lineInd + 1 >= maxLines && wrap < text+len) {
-                    ImGui::RenderTextEllipsis(ImGui::GetWindowDrawList(), ImGui::GetCursorScreenPos(), ImGui::GetCursorScreenPos() + lineSize + ImVec2{0,g.Style.FramePadding.y}, ImGui::GetCursorScreenPos().x + maxWidth, s, text + len, 0);
-                }
-                else {
-                    ImGui::TextUnformatted(s, wrap);
-                }
-            }
-            
-
-            s = wrap;
-            lineInd++;
-        }
-        ImGui::PopStyleVar();
-
-        // convert to screen space
-        minPos += ImGui::GetWindowPos() - ImVec2{ImGui::GetScrollX(), ImGui::GetScrollY()};
-        maxPos += ImGui::GetWindowPos() - ImVec2{ImGui::GetScrollX(), ImGui::GetScrollY()};
-
-        return ImRect(minPos, maxPos);
-    }
-    static bool ComboVertical(const char* str_id, size_t* v, const char** labels, size_t labelCnt, const ImVec2& size_arg = { 0,0 }) {
-        ImGui::PushID(str_id);
-
-        ImVec2 avail = ImGui::GetContentRegionAvail();
-        ImVec2 size = ImVec2(size_arg.x != 0 ? size_arg.x : avail.x, size_arg.y != 0 ? size_arg.y : ImGui::GetFrameHeight());
-
-        ImVec2 borderPad = { 1,1 };
-        ImRect rec(ImGui::GetCursorScreenPos() - borderPad, ImGui::GetCursorScreenPos() + size + borderPad);
-        ImGui::GetWindowDrawList()->AddRectFilled(rec.Min, rec.Max, ImColor(ImGui::GetStyleColorVec4(ImGuiCol_ChildBg)));
-
-        //ImGui::A();
-        ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset = 0;
-
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, { 0,0 });
-        ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, {0.5,0.5});
-        bool changed = false;
-        for (size_t i = 0; i < labelCnt; i++) {
-            if (i > 0)
-                ImGui::SameLine();
-            if (ImGui::Selectable(labels[i], *v == i, ImGuiSelectableFlags_NoPadWithHalfSpacing, ImVec2(size.x / labelCnt, size.y))) {
-                *v = i;
-                changed = true;
-            }
-        }
-        ImGui::PopStyleVar();
-        ImGui::PopStyleVar();
-
-        ImGui::GetWindowDrawList()->AddRect(rec.Min, rec.Max, ImColor(ImGui::GetStyleColorVec4(ImGuiCol_Border)));
-
-        ImGui::PopID();
-        return changed;
-    }
 
     static void formatTime(char* buf, size_t bufSize, double unixTime) {
         IM_ASSERT(bufSize > 0);
@@ -1140,7 +1152,7 @@ namespace ImGuiFD {
             bool endEdit = false;
             fd->forceDisplayAllDirs = false;
 
-            if (utils::InputTextString("##editPath", "Enter a Directory", &fd->editOnPathStr, ImGuiInputTextFlags_EnterReturnsTrue)) {
+            if (ImGuiExt::InputTextString("##editPath", "Enter a Directory", &fd->editOnPathStr, ImGuiInputTextFlags_EnterReturnsTrue)) {
                 endEdit = true;
                 if (Native::isValidDir(utils::fixDirStr(fd->editOnPathStr.c_str()).c_str())) {
                     fd->dirSetTo(fd->editOnPathStr.c_str());
@@ -1183,7 +1195,7 @@ namespace ImGuiFD {
         ImGui::SameLine();
         const char* labels[] = { "T","I" };
         size_t mode = settings.displayMode;
-        if (ComboVertical("DisplayModeBtn", &mode, labels, 2, { displayModeBtnWidth, 0 })) {
+        if (ImGuiExt::ComboHorizontal("DisplayModeBtn", &mode, labels, 2, { displayModeBtnWidth, 0 })) {
             settings.displayMode = (uint8_t)mode;
         }
 
@@ -1511,14 +1523,14 @@ namespace ImGuiFD {
                             const float maxWidth = cursorEnd.x - cursorStart.x;
 
                             if (!isRenamingThis) {
-                                TextWrappedCentered(entry.name, maxWidth, maxTextLines);
+                                ImGuiExt::TextWrappedCentered(entry.name, maxWidth, maxTextLines);
                             }
                             else {
                                 const float textWidth = ImGui::CalcTextSize(fd->renameStr.c_str()).x + ImGui::GetStyle().FramePadding.x*2;
                                 const float inputWidth = textWidth < 70 ? 70 : textWidth;
                                 ImGui::SetCursorPosX(ImGui::GetCursorPosX() + maxWidth / 2 - inputWidth / 2);
                                 ImGui::SetKeyboardFocusHere();
-                                if (utils::InputTextString("##renameInput", "New Name", &fd->renameStr, ImGuiInputTextFlags_EnterReturnsTrue, { inputWidth,0 })) {
+                                if (ImGuiExt::InputTextString("##renameInput", "New Name", &fd->renameStr, ImGuiInputTextFlags_EnterReturnsTrue, { inputWidth,0 })) {
                                     ds::string path = fd->currentPath.toString();
                                     IM_ASSERT(path[path.size() - 1] == '/');
                                     bool success = Native::rename((path + entry.name).c_str(), (path + fd->renameStr).c_str());
@@ -1585,7 +1597,7 @@ namespace ImGuiFD {
             ImGui::Separator();
             ImGui::TextUnformatted("Enter the name of your new folder:");
 
-            utils::InputTextString("EnterNewFolderName", "Enter the name of the new folder", &fd->newFolderNameStr);
+            ImGuiExt::InputTextString("EnterNewFolderName", "Enter the name of the new folder", &fd->newFolderNameStr);
 
             if (ImGui::Button("OK")) {
                 bool success = Native::makeFolder((fd->currentPath.toString() + "/" + fd->newFolderNameStr).c_str());
@@ -1656,7 +1668,7 @@ namespace ImGuiFD {
 
         ImGui::PushItemWidth(-FLT_MIN);
         // file name text input
-        utils::InputTextString("##Name", "File Name", &fd->inputText, 0, { ImVec2{ fd->hasFilter ? 0 : widthWOBtns, 0 } });
+        ImGuiExt::InputTextString("##Name", "File Name", &fd->inputText, 0, { ImVec2{ fd->hasFilter ? 0 : widthWOBtns, 0 } });
 
         // filter combo
         if (fd->hasFilter) {

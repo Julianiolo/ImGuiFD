@@ -28,9 +28,23 @@ inline void imfd_free(void* p) {
 #define IMFD_ALLOC(_x_) imfd_alloc(_x_)//IM_ALLOC(_x_)
 #define IMFD_FREE(_x_) imfd_free(_x_)//IM_FREE(_x_)
 
+#define IMFD_ASSERT_PARANOID(_x_) IM_ASSERT(_x_)
+
+#ifdef _WIN32
+#define IMFD_UNIX_PATHS 0
+#else
+#define IMFD_UNIX_PATHS 1
+#endif
+
 #define IMFD_USE_MOVE 1
 
 namespace ds {
+#ifdef _WIN32
+    constexpr char preffered_separator = '\\';
+#else
+    constexpr char preffered_separator = '/';
+#endif
+
 #ifdef IMGUIFD_ENABLE_STL
     template<class T> using remove_reference = typename std::remove_reference<T>;
     using std::forward;
@@ -1075,6 +1089,7 @@ namespace ImGuiFD {
     };
 
     namespace Native {
+        bool isAbsolutePath(const char* path);
         ds::ErrResult<ds::string> getAbsolutePath(const char* path);
         bool isValidDir(const char* dir);
 

@@ -1,6 +1,7 @@
 #include "ImGuiFD.h"
 #include "ImGuiFD_internal.h"
 
+#include <imgui.h>
 #include <stdint.h>
 #include <sys/stat.h>
 
@@ -129,6 +130,15 @@ static double winFileTimeToUnix(const FILETIME& ft) {
     return (double)li.QuadPart / 1e7 - 11644473600LL;
 }
 #endif
+
+bool ImGuiFD::Native::isAbsolutePath(const char* path) {
+    IM_ASSERT(path != NULL);
+#ifdef _WIN32
+    return true;  // TODO
+#else
+    return path[0] == '/';
+#endif
+}
 
 ds::ErrResult<ds::string> ImGuiFD::Native::getAbsolutePath(const char* path_) {
     if (path_[0] == '/' && path_[0] == 0)  // path_ == "/"
