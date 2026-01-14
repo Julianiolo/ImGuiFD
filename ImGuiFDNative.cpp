@@ -311,7 +311,7 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEntrys(cons
             entry->isFolder = !!(fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
             entry->dir = ImStrdup(path);
             entry->path = combinePath(entry->dir, name, entry->isFolder);
-            entry->name = entry->path + strlen(entry->dir) + 1;
+            entry->name = entry->path + strlen(entry->dir);
             statDirEnt(entry);
 
             i++;
@@ -344,7 +344,7 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEntrys(cons
             entry->isFolder = de->d_type == DT_DIR;
             entry->dir = ImStrdup(path);
             entry->path = combinePath(entry->dir, de->d_name, entry->isFolder);
-            entry->name = entry->path + strlen(entry->dir) + 1;
+            entry->name = entry->path + strlen(entry->dir);
 
             statDirEnt(entry);
         }

@@ -4,6 +4,8 @@
 #include "ImGuiFD.h"
 #include "imgui_internal.h"
 
+#include <cstddef>
+#include <imgui.h>
 #include <time.h>
 
 #ifdef IMGUIFD_ENABLE_STL
@@ -101,12 +103,14 @@ namespace ds {
         // Constructors, destructor
         inline vector()                                         { Size = Capacity = 0; Data = NULL; }
         inline vector(const vector<T>& src)                     { Size = Capacity = 0; Data = NULL; operator=(src); }
-        inline vector(vector<T>&& src) noexcept { 
+        inline vector(vector<T>&& src) noexcept {
+            IM_ASSERT(this != &src);
             Size = src.Size; 
             Capacity = src.Capacity;
             Data = src.Data;
             src.Data = NULL;
-            src.clear();
+            src.Size = 0;
+            src.Capacity = 0;
         }
         inline vector(size_t size_) { 
             Size = Capacity = 0; 
@@ -121,21 +125,23 @@ namespace ds {
                 this->operator[](i) = def;
         }
         inline vector<T>& operator=(const vector<T>& src)       { 
-            clear(); 
+            clear();
             reserve(src.Size);
             Size = src.Size;
             for(size_t i = 0; i<src.Size;i++) 
                 IM_PLACEMENT_NEW(&Data[i]) T(src.Data[i]); 
             return *this;
         }
-        inline vector<T>& operator=(vector<T>&& src)       { 
+        inline vector<T>& operator=(vector<T>&& src) noexcept { 
+            IM_ASSERT(this != &src);
             clear();
 
             Size = src.Size; 
             Capacity = src.Capacity;
             Data = src.Data;
             src.Data = NULL;
-            src.clear();
+            src.Size = 0;
+            src.Capacity = 0;
 
             return *this;
         }
@@ -179,29 +185,54 @@ namespace ds {
 
         inline size_t       _grow_capacity(size_t sz) const     { size_t new_capacity = Capacity ? (Capacity + Capacity / 2) : 8; return new_capacity > sz ? new_capacity : sz; }
         inline void         resize(size_t new_size)             { 
-            if (new_size > Capacity) 
-                reserve(_grow_capacity(new_size)); 
+            if(new_size == Size) return;
+            if(new_size < Size) {
+                shrink(new_size);
+                return;
+            }
+            if (new_size > Capacity) {
+                reserve(_grow_capacity(new_size));
+            }
             for (size_t i = Size; i < new_size; i++) {
                 IM_PLACEMENT_NEW(&Data[i]) T();
             }
             Size = new_size; 
         }
-        inline void         resize(size_t new_size, const T& v) { if (new_size > Capacity) reserve(_grow_capacity(new_size)); if (new_size > Size) for (size_t n = Size; n < new_size; n++) IM_PLACEMENT_NEW(&Data[n]) T(v); Size = new_size; }
-        inline void         shrink(size_t new_size)             {  // Resize a vector to a smaller size, guaranteed not to cause a reallocation
-            IM_ASSERT(new_size <= Size); 
+        inline void         resize(size_t new_size, const T& v) {
+            if(new_size == Size) return;
+            if(new_size < Size) {
+                shrink(new_size);
+                return;
+            }
+            if (new_size > Capacity) 
+                reserve(_grow_capacity(new_size)); 
+            for (size_t n = Size; n < new_size; n++) 
+                IM_PLACEMENT_NEW(&Data[n]) T(v); 
+            Size = new_size; 
+        }
+        inline void         shrink(size_t new_size)             {  // Resize a vector to a smaller size
+            IM_ASSERT(new_size <= Size);
             for (size_t i = new_size; i < Size; i++) {
                 Data[i].~T();
             }
             Size = new_size; 
+            if(Size < (Capacity * 2) / 3) {
+                // reduce capacity
+                _set_capacity(_grow_capacity(Size));
+            }
         }
-        inline void         reserve(size_t new_capacity)        { 
-            if (new_capacity <= Capacity) 
-                return; 
+        inline void         reserve(size_t new_capacity)        {  // only ever makes the vector bigger
+            if (new_capacity <= Capacity)  {
+                return;
+            }
+            _set_capacity(new_capacity);
+        }
+        inline void         _set_capacity(size_t new_capacity) {
+            IM_ASSERT(new_capacity >= Size);
             T* new_data = (T*)IMFD_ALLOC((size_t)new_capacity * sizeof(T)); 
             if (Data) { 
-                //memcpy(new_data, Data, (size_t)Size * sizeof(T));
                 for(size_t i = 0; i < Size; i++) {
-                    IM_PLACEMENT_NEW(&new_data[i]) T((T&&)Data[i]);
+                    IM_PLACEMENT_NEW(&new_data[i]) T(ds::move(Data[i]));
                     Data[i].~T();
                 }
                 IMFD_FREE(Data);
@@ -231,7 +262,7 @@ namespace ds {
             const ptrdiff_t off = it - Data; 
             //memmove(Data + off, Data + off + 1, (Size - (size_t)off - 1) * sizeof(T)); 
             for(size_t i = off; i+1 < Size; i++) {
-                Data[i] = Data[i+1];
+                Data[i] = ds::move(Data[i+1]);
             }
             Size--; 
             return Data + off;
@@ -242,7 +273,7 @@ namespace ds {
             const ptrdiff_t off = it - Data; 
             //memmove(Data + off, Data + off + count, ((size_t)Size - (size_t)off - count) * sizeof(T)); 
             for(size_t i = off; i+count < Size; i++) {
-                Data[i] = Data[i+count];
+                Data[i] = ds::move(Data[i+count]);
             }
             Size -= (int)count; 
             return Data + off; 
@@ -255,7 +286,7 @@ namespace ds {
             if (off < (ptrdiff_t)Size) {
                 //memmove(Data + off + 1, Data + off, ((size_t)Size - (size_t)off) * sizeof(T));
                 for(size_t i = off; i+1 < Size; i++) {
-                    Data[i+1] = Data[i];
+                    Data[i+1] = ds::move(Data[i]);
                 }
             }
                  
@@ -271,11 +302,11 @@ namespace ds {
             if (off < (ptrdiff_t)Size) {
                 //memmove(Data + off + 1, Data + off, ((size_t)Size - (size_t)off) * sizeof(T));
                 for(size_t i = off; i+1 < Size; i++) {
-                    Data[i+1] = Data[i];
+                    Data[i+1] = ds::move(Data[i]);
                 }
             }
                  
-            IM_PLACEMENT_NEW(&Data[off]) T(move(v));
+            IM_PLACEMENT_NEW(&Data[off]) T(ds::move(v));
             Size++; 
             return Data + off; 
         }
@@ -794,43 +825,80 @@ namespace ds {
     class OverrideStack {
     protected:
         ds::vector<T*> arr;
-        size_t start = 0; //points to the next free slot
-        size_t len, currSize = 0;
+        size_t start = 0;
+        size_t currSize = 0;
 
     public:
-        OverrideStack(size_t size_) : arr(size_, nullptr), len(size_){
-
+        OverrideStack(size_t size_) : arr(size_, NULL){
+            
+        }
+        OverrideStack(const OverrideStack& o) : arr(o.arr.size(), NULL), start(0), currSize(o.currSize) {
+            for(size_t i = 0; i<o.currSize; i++) {
+                push(*o.arr[(o.start+i) % o.arr.size()]);
+            }
+        }
+        OverrideStack(OverrideStack&& o) : arr(ds::move(o.arr)), start(o.start), currSize(o.currSize) {
+            o.currSize = 0;
+        }
+        ~OverrideStack() {
+            clear();
+        }
+        OverrideStack& operator=(const OverrideStack& o) {
+            clear();
+            arr.resize(o.arr.size(), NULL);
+            for(size_t i = 0; i<o.currSize; i++) {
+                push(*o.arr[(o.start+i) % o.arr.size()]);
+            }
+            IMFD_ASSERT_PARANOID(currSize == o.currSize);
+            return *this;
+        }
+        OverrideStack& operator=(OverrideStack&& o) {
+            IM_ASSERT(this != &o);
+            clear();
+            arr = move(o.arr);
+            start = o.start;
+            currSize = o.currSize;
+            o.currSize = 0;
+            return *this;
         }
 
         void push(const T& t) {
-            arr[start] = (T*)IMFD_ALLOC(sizeof(t));
-            IM_PLACEMENT_NEW(arr[start]) T(t);
-            start = (start+1)%len;
-            if (currSize < len) {
+            const size_t nextSlot = (start + currSize) % arr.size();
+            if (currSize < arr.size()) {
                 currSize++;
+            } else {
+                start++;
+                // about to override this, so dealloc it first
+                arr[nextSlot]->~T();
+                IMFD_FREE(arr[nextSlot]);
             }
+            arr[nextSlot] = (T*)IMFD_ALLOC(sizeof(t));
+            IM_PLACEMENT_NEW(arr[nextSlot]) T(t);
         }
         void push(const T* t) {
-            arr[start] = t;
-            start = (start+1)%len;
-            if (currSize < len) {
+            const size_t nextSlot = (start + currSize) % arr.size();
+            if (currSize < arr.size()) {
                 currSize++;
+            } else {
+                start++;
+                // about to override this, so dealloc it first
+                arr[nextSlot]->~T();
+                IMFD_FREE(arr[nextSlot]);
             }
+            arr[nextSlot] = t;
         }
         bool pop(T* out) {
             if (!isEmpty()) {
-                if (currSize > 0) {
-                    currSize--;
-                }
+                currSize--;
 
-                start = (start + len - 1) % len;
+                const size_t slot = (start + currSize) % arr.size();
                 if (out != NULL) {
-                    *out = *arr[start];
+                    *out = move(*arr[slot]);
                 }
 
-                arr[start]->~T();
-                IMFD_FREE(arr[start]);
-                arr[start] = nullptr;
+                arr[slot]->~T();
+                IMFD_FREE(arr[slot]);
+                arr[slot] = NULL;
 
                 return true;
             }
@@ -840,14 +908,13 @@ namespace ds {
         }
         bool popPtr(T** out) { // doesnt free
             if (!isEmpty()) {
-                if (currSize > 0) {
-                    currSize--;
-                }
+                currSize--;
 
-                start = (start + len - 1) % len;
-                if (out != NULL) {
-                    *out = arr[start];
-                }
+                const size_t slot = (start + currSize) % arr.size();
+                IM_ASSERT(out != NULL);
+                *out = arr[slot];
+
+                arr[slot] = NULL;
 
                 return true;
             }
@@ -855,19 +922,21 @@ namespace ds {
                 return false;
             }
         }
+        // 0 == last pushed entry
         T*& at(size_t ind) {
-            int stackInd = (start + len - 1 - ind) % len;
+            int stackInd = (start + arr.size() - 1 - ind) % arr.size();
             return arr[stackInd];
         }
         void clear() {
-            for (size_t i = 0; i < len; i++) {
-                if (arr[i] != nullptr) {
-                    arr[i]->~T();
-                    IMFD_FREE(arr[i]);
-                    arr[i] = nullptr;
-                }
+            for (size_t i = 0; i < currSize; i++) {
+                size_t ind = (start+i) % arr.size();
+                IM_ASSERT_PARANOID(arr[ind] != nullptr)
+                arr[ind]->~T();
+                IMFD_FREE(arr[ind]);
+                arr[ind] = nullptr;
             }
 
+            start = 0;
             currSize = 0;
         }
 
@@ -879,30 +948,28 @@ namespace ds {
         }
 
         void resize(size_t newSize) {
-            if (newSize == len)
+            if (newSize == arr.size())
                 return;
 
             ds::vector<T*> newVec(newSize, nullptr);
 
-            if (newSize > len) {
-                for (size_t i = 0; i < len; i++) {
-                    newVec[i] = at(len - 1 - i);
+            if (newSize > arr.size()) {
+                for (size_t i = 0; i < currSize; i++) {
+                    newVec[i].push(arr[(start+i) % arr.size()]);
                 }
-                start = len;
             }
-            else {
+            else {  // newSize < len
                 for (size_t i = 0; i < newSize; i++) {
-                    newVec[newSize - 1 - i] = at(i);
+                    newVec[i].push(arr[(start+i) % arr.size()]);
                 }
-                for (size_t i = newSize; i < len; i++) {
+                for (size_t i = newSize; i < arr.size(); i++) {
                     arr[i]->~T();
                     IMFD_FREE(arr[i]);
                 }
-                start = 0;
             }
 
-            len = newSize;
-            arr = newVec;
+            arr = move(newVec);
+            start = 0;
         }
     };
 

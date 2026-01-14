@@ -1,3 +1,4 @@
+#include <type_traits>
 #define IMGUI_DEFINE_MATH_OPERATORS 1
 #include <imgui_internal.h>
 #include "ImGuiFD.h"
@@ -1201,12 +1202,14 @@ namespace ImGuiFD {
 
         ImGui::SameLine();
 
+        char settingPopupName[256];
+        ds::own_snprintf(settingPopupName, sizeof(settingPopupName), "ImGuiFDSettingsPop_%s", fd->str_id.c_str());
+
         if (ImGui::Button("S")) {
-            ImGui::OpenPopup((fd->str_id + "SettingsPopup").c_str());
+            ImGui::OpenPopup(settingPopupName);
         }
 
-
-        if (ImGui::BeginPopup((fd->str_id + "SettingsPopup").c_str())) {
+        if (ImGui::BeginPopup(settingPopupName)) {
             DrawSettings();
             ImGui::EndPopup();
         }
