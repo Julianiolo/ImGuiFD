@@ -437,7 +437,8 @@ namespace ImGuiFD {
         }
     };
 
-    class FileNameFilter {
+    // this handles both the search bar and the selector for file extensions
+    class FileFilter {
     private:
         class Filter {
             class SubFilter {
@@ -519,29 +520,35 @@ namespace ImGuiFD {
                 }
             };
 
-            ds::vector<SubFilter> filters;
+            ds::vector<SubFilter> subFilters;
         public:
             ds::string rawStr;
             
+            Filter() {
+
+            }
             Filter(const ds::string& cmd) : rawStr(cmd) {
+                if(cmd == "*.*")
+                    return;
+
                 size_t last = 0;
                 for (size_t i = 0; i < cmd.size(); i++) {
                     if (cmd[i] == ',' && i>last) {
-                        filters.push_back(SubFilter(cmd.substr(last, i)));
+                        subFilters.push_back(SubFilter(cmd.substr(last, i)));
                         last = i + 1;
                     }
                 }
                 if (last != cmd.size()) {
-                    filters.push_back(SubFilter(cmd.substr(last, cmd.size())));
+                    subFilters.push_back(SubFilter(cmd.substr(last, cmd.size())));
                 }
             }
 
             bool passes(const char* name) {
-                if (filters.size() == 0)
+                if (subFilters.size() == 0)
                     return true;
 
-                for (size_t i = 0; i < filters.size(); i++) {
-                    if (filters[i].passes(name))
+                for (size_t i = 0; i < subFilters.size(); i++) {
+                    if (subFilters[i].passes(name))
                         return true;
                 }
                 return false;
@@ -550,13 +557,15 @@ namespace ImGuiFD {
 
     public:
         ds::string searchText;
+        Filter searchFilter;
+
         size_t filterSel = 0; // currently selected filter
         ds::vector<Filter> filters;
 
-        FileNameFilter() {
+        FileFilter() {
 
         }
-        FileNameFilter(const char* filter) {
+        FileFilter(const char* filter) {
             size_t len = filter ? strlen(filter) : 0;
 
             if (len == 0)
@@ -571,7 +580,7 @@ namespace ImGuiFD {
                 size_t last = 0;
                 for (size_t i = 0; i < len; i++) {
                     if (filter[i] == '{') bracketCntr++;
-                    if (filter[i] == '{') bracketCntr--;
+                    if (filter[i] == '}') bracketCntr--;
                     if (filter[i] == ',' && bracketCntr == 0 && i>last) {
                         filters.push_back(ds::string(filter+last,filter+i));
                         last = i + 1;
@@ -587,11 +596,8 @@ namespace ImGuiFD {
         }
 
         bool passes(const char* name, bool isFolder) {
-            if (searchText.size() > 0) {
-                Filter searchFilter(searchText);
-                if (!searchFilter.passes(name))
-                    return false;
-            }
+            if (!searchFilter.passes(name))
+                return false;
 
             if (isFolder)
                 return true;
@@ -608,6 +614,9 @@ namespace ImGuiFD {
         bool draw(float width = -1) {
             ImGui::PushItemWidth(width);
             bool ret = ImGuiExt::InputTextString("##Search", "Search", &searchText);
+            if(ret) {
+                searchFilter = Filter(searchText);
+            }
             ImGui::PopItemWidth();
             return ret;
         }
@@ -676,7 +685,7 @@ namespace ImGuiFD {
             bool loadedSucessfully = false;
         public:
             bool sorted = false;
-            FileNameFilter filter;
+            FileFilter filter;
 
             EntryManager(const char* filter) : filter(filter) {
                 

@@ -371,7 +371,7 @@ namespace ds {
 
         inline string substr(size_t from, size_t to) const {
             IM_ASSERT(from < size());
-            IM_ASSERT(to < size());
+            IM_ASSERT(to <= size());
             IM_ASSERT(from <= to);
             return ds::string(begin() + from, begin() + to);
         }
