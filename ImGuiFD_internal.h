@@ -15,13 +15,20 @@
 #include <utility>
 #endif
 
+inline size_t imfd_num_alloc = 0;
+inline size_t imfd_num_free = 0;
+
 inline void* imfd_alloc(size_t s) {
+    imfd_num_alloc++;
     auto p = IM_ALLOC(s);
-    printf("alloc: %p (%4zu)\n", p, s);
+    //printf("alloc: %p (%4zu)\n", p, s);
     return p;
 }
 inline void imfd_free(void* p) {
-    printf(" free: %p \n", p);
+    if(p != NULL) {
+        imfd_num_free++;
+        //printf(" free: %p \n", p);
+    }
     IM_FREE(p);
 }
 
@@ -284,7 +291,12 @@ namespace ds {
     public:
         T0 first;
         T1 second;
-        inline pair(const T0& t0_, const T1& t1_) : first(t0_), second(t1_){}
+#if !IMFD_USE_MOVE
+        inline pair(const T0& t0_, const T1& t1_) : first(t0_), second(t1_) {}
+#else
+        template<typename T0_, typename T1_>
+        inline pair(T0_&& t0_, T1_&& t1_) : first(ds::forward<T0_>(t0_)), second(ds::forward<T1_>(t1_)) {}
+#endif
 
         inline bool operator==(const pair<T0, T1>& other) {
             return first == other.first && second == other.second;
@@ -609,11 +621,13 @@ namespace ds {
             data.insert(data.begin() + ind, { id,t });
             return data[ind].second;
         }
+#if IMFD_USE_MOVE
         inline T& insert(ImGuiID id, T&& t) {
             size_t ind = getIndInsert(id);
             data.insert(data.begin() + ind, { id,move(t) });
             return data[ind].second;
         }
+#endif
 
         inline void erase(ImGuiID id) {
             size_t ind = getIndContains(id);
@@ -1093,14 +1107,12 @@ namespace ImGuiFD {
         ds::ErrResult<ds::string> getAbsolutePath(const char* path);
         bool isValidDir(const char* dir);
 
-        ds::ErrResult<ds::vector<DirEntry>> loadDirEnts(const char* path);
+        ds::ErrResult<ds::vector<DirEntry>> loadDirEntrys(const char* path);
         bool fileExists(const char* path);
 
         bool rename(const char* name, const char* newName);
 
         bool makeFolder(const char* path);
-
-        ds::string makePathStrOSComply(const char* path);
     }
 }
 

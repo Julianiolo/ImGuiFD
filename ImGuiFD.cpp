@@ -130,9 +130,9 @@ namespace ImGuiFD {
                         if (path[0] != '/') { // check if path is relative
                             path = dirStr + path;
                         }
-                        path = Native::makePathStrOSComply(path.c_str());
+                        //path = Native::makePathStrOSComply(path.c_str());
                         const char* filename = getFileName(path.c_str());
-                        out.push_back({ filename,path});
+                        out.push_back(ds::pair<ds::string, ds::string>(filename,path));
                         last = i+1;
                     }
                 }
@@ -143,7 +143,7 @@ namespace ImGuiFD {
                 if (path[0] != '/') { // check if path is relative
                     path = dirStr + path;
                 }
-                path = Native::makePathStrOSComply(path.c_str());
+                //path = Native::makePathStrOSComply(path.c_str());
                 out.push_back({ getFileName(path.c_str()),path});
             }
 
@@ -683,14 +683,14 @@ namespace ImGuiFD {
 
             // return true if it was able to load the directory
             bool update(const char* dir) {
-                auto res = Native::loadDirEnts(dir);
+                auto res = Native::loadDirEntrys(dir);
                 if(res.has_value())
-                    setEntrysTo(res.value());
+                    setEntrysTo(move(res.value()));
                 return res.has_value();
             }
 
-            void setEntrysTo(const ds::vector<DirEntry>& src) {
-                data = src;
+            void setEntrysTo(ds::vector<DirEntry>&& src) {
+                data = move(src);
                 updateFiltering();
             }
 

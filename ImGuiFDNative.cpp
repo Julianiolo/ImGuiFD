@@ -144,14 +144,9 @@ ds::ErrResult<ds::string> ImGuiFD::Native::getAbsolutePath(const char* path_) {
     if (path_[0] == '/' && path_[0] == 0)  // path_ == "/"
         return ds::Ok<const char*>("/");
 
-    ds::string path = makePathStrOSComply(path_);
-
-    if (path.size() == 0)
-        path = ".";
-
     
 #ifdef _WIN32
-    auto res = toWinPath(path.c_str());
+    auto res = toWinPath(path_);
     if(res.has_err())
         return res.error_prop();
     const wchar_t* path_w = res.value();
@@ -172,7 +167,7 @@ ds::ErrResult<ds::string> ImGuiFD::Native::getAbsolutePath(const char* path_) {
         out_.error_prop();
     ds::string out = move(out_.value());
 #else
-    char* out_ = realpath(path.c_str(), NULL);
+    char* out_ = realpath(path_, NULL);
     if (out_ == NULL) return ds::Err(ds::format("realpath(%s) failed: %s", path_, strerror(errno)));
     ds::string out(out_);
     free(out_);
@@ -182,9 +177,8 @@ ds::ErrResult<ds::string> ImGuiFD::Native::getAbsolutePath(const char* path_) {
 }
 
 bool ImGuiFD::Native::fileExists(const char* path) {
-    ds::string path_ = makePathStrOSComply(path);
     struct stat st;
-    return stat(path_.c_str(), &st) == 0 && (st.st_mode & S_IFREG);
+    return stat(path, &st) == 0 && (st.st_mode & S_IFREG);
 }
 
 bool ImGuiFD::Native::rename(const char* name, const char* newName) {
@@ -192,11 +186,9 @@ bool ImGuiFD::Native::rename(const char* name, const char* newName) {
 }
 
 static void statDirEnt(ImGuiFD::DirEntry* entry) {
-    ds::string path = ImGuiFD::Native::makePathStrOSComply(entry->path);
-
 #ifdef __unix__
     struct stat st;
-    int ret = lstat(path.c_str(), &st);
+    int ret = lstat(entry->path, &st);
 
     if (ret != 0)
         return;
@@ -205,7 +197,7 @@ static void statDirEnt(ImGuiFD::DirEntry* entry) {
     entry->lastAccessed = st.st_atime;
     entry->lastModified = st.st_mtime;
 #elif defined(_WIN32)
-    auto res = toWinPath(path.c_str());
+    auto res = toWinPath(entry->path);
     if(res.has_err())
         return;
     const wchar_t* path_w = res.value();
@@ -253,15 +245,13 @@ static int cmpEntrys(const void* a_, const void* b_) {
 }
 
 
-ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEnts(const char* path_) {
-    ds::string path = makePathStrOSComply(path_);
-
+ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEntrys(const char* path) {
     ds::vector<DirEntry> entrys;
 
-    auto hash = ImHashStr(path_);
+    auto hash = ImHashStr(path);
 
 #ifdef _WIN32
-    if (strcmp(path_, "/") == 0) {
+    if (strcmp(path, "/") == 0) {
         // handle drive letters
 
         char buf[1024];
@@ -296,7 +286,7 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEnts(const 
     else {
         // handle normal folder
         WIN32_FIND_DATAW fdata;
-        auto ret = FindFirstFileUtf8((path+"/*").c_str(), &fdata);
+        auto ret = FindFirstFileUtf8((ds::string(path)+"/*").c_str(), &fdata);
         if(ret.has_err()) return ret.error_prop();
         HANDLE findH = ret.value();
 
@@ -319,7 +309,7 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEnts(const 
                 name = backupWStrToUtf8_Buf(fdata.cFileName);
             }
             entry->isFolder = !!(fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
-            entry->dir = ImStrdup(path.c_str());
+            entry->dir = ImStrdup(path);
             entry->path = combinePath(entry->dir, name, entry->isFolder);
             entry->name = entry->path + strlen(entry->dir) + 1;
             statDirEnt(entry);
@@ -338,12 +328,12 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEnts(const 
 #else
 
     dirent** namelist = 0; // pointer for array of dirent*
-    const int numRead = scandir(path.c_str(), &namelist, NULL, ::alphasort);
+    const int numRead = scandir(path, &namelist, NULL, ::alphasort);
 
     if (namelist == NULL || numRead < 0) // couldn't read directory
         return ds::Err(ds::format("scandir failed: %s", strerror(errno)));;
 
-    
+    entrys.reserve(numRead);
     for (int i = 0; i<numRead; i++) {
         dirent* de = namelist[i];
         IM_ASSERT(de != NULL);
@@ -352,7 +342,7 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEnts(const 
             DirEntry* entry = &entrys.back();
             entry->id = (hash<<16)+i;
             entry->isFolder = de->d_type == DT_DIR;
-            entry->dir = ImStrdup(path.c_str());
+            entry->dir = ImStrdup(path);
             entry->path = combinePath(entry->dir, de->d_name, entry->isFolder);
             entry->name = entry->path + strlen(entry->dir) + 1;
 
@@ -371,7 +361,7 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEnts(const 
 
 bool ImGuiFD::Native::isValidDir(const char* dir) {
     struct stat info;
-    int ret = stat(makePathStrOSComply(dir).c_str(), &info);
+    int ret = stat(dir, &info);
     return ret == 0 && (info.st_mode & S_IFDIR);
 }
 
@@ -386,17 +376,17 @@ bool ImGuiFD::Native::makeFolder(const char* path) {
     return status == 0;
 }
 
-ds::string ImGuiFD::Native::makePathStrOSComply(const char* path) {
-#ifdef _WIN32
-    // remove root '/'
-    if(path[0] == '/')
-        path++;
-    IM_ASSERT(path[0] != '/');
+// ds::string ImGuiFD::Native::makePathStrOSComply(const char* path) {
+// #ifdef _WIN32
+//     // remove root '/'
+//     if(path[0] == '/')
+//         path++;
+//     IM_ASSERT(path[0] != '/');
 
-    size_t len = strlen(path);
-    if (len == 2 && path[len-1] == ':') {
-        return ds::string(path) + "/";
-    }
-#endif
-    return path;
-}
+//     size_t len = strlen(path);
+//     if (len == 2 && path[len-1] == ':') {
+//         return ds::string(path) + "/";
+//     }
+// #endif
+//     return path;
+// }
