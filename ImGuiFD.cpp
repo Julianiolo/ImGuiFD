@@ -355,10 +355,11 @@ namespace ImGuiFD {
         }
 
         void setToPath(const char* rawPath) {
+            IMFD_ASSERT_PARANOID(Native::isAbsolutePath(rawPath));
             ds::string rawPathFix = utils::fixDirStr(rawPath).c_str(); // fixes weird behaviour on win when e.g. setting to "D:"
             parts = splitAbsolutePath(
                 utils::fixDirStr(
-                    Native::getAbsolutePath(rawPathFix.c_str()).value().c_str()  // TODO error handling
+                    rawPathFix.c_str()
                 ).c_str()
             );
         }
@@ -379,8 +380,10 @@ namespace ImGuiFD {
         }
 
         void moveDownTo(const char* folder) {
-            IM_ASSERT_PARANOID(strchr(folder, '/') == NULL && strchr(folder, ds::preffered_separator) == NULL);
-            parts.push_back(folder);
+            IMFD_ASSERT_PARANOID(strlen(folder) > 0 && folder[strlen(folder)-1] == '/');
+            ds::string f = ds::string(folder, folder + strlen(folder)-1);
+            IMFD_ASSERT_PARANOID(strchr(f.c_str(), '/') == NULL && strchr(f.c_str(), ds::preffered_separator) == NULL);
+            parts.push_back(ds::move(f));
         }
 
         ds::string toString() {
@@ -1164,12 +1167,19 @@ namespace ImGuiFD {
 
             if (ImGuiExt::InputTextString("##editPath", "Enter a Directory", &fd->editOnPathStr, ImGuiInputTextFlags_EnterReturnsTrue)) {
                 endEdit = true;
-                if (Native::isValidDir(utils::fixDirStr(fd->editOnPathStr.c_str()).c_str())) {
-                    fd->dirSetTo(fd->editOnPathStr.c_str());
+                auto absPathRes = Native::getAbsolutePath(fd->editOnPathStr.c_str());
+                if(absPathRes.has_value()) {
+                    const char* absPath = absPathRes.value().c_str();
+                    if (Native::isValidDir(absPath)) {
+                        fd->dirSetTo(absPath);
+                    }
+                    else {
+                        printf("Not a valid dir: %s\n", fd->editOnPathStr.c_str());
+                    }
+                } else {
+                    printf("Not a valid dir: %s\n", absPathRes.error().c_str());
                 }
-                else {
-                    printf("Not a valid dir: %s\n", fd->editOnPathStr.c_str());
-                }
+                
             }
 
             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsItemHovered())
