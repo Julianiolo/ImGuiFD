@@ -1,4 +1,3 @@
-#include <type_traits>
 #define IMGUI_DEFINE_MATH_OPERATORS 1
 #include <imgui_internal.h>
 #include "ImGuiFD.h"
@@ -263,8 +262,10 @@ namespace ImGuiFD {
         }
     }
 
-    ImGuiTableSortSpecs* globalSortSpecs = 0;
-    ds::vector<DirEntry>* globalSortData = 0;
+    static bool showDirsFirstHasChanged = false;
+
+    static ImGuiTableSortSpecs* globalSortSpecs = 0;
+    static ds::vector<DirEntry>* globalSortData = 0;
 
     enum {
         DEIG_NAME = 0,
@@ -356,12 +357,7 @@ namespace ImGuiFD {
 
         void setToPath(const char* rawPath) {
             IMFD_ASSERT_PARANOID(Native::isAbsolutePath(rawPath));
-            ds::string rawPathFix = utils::fixDirStr(rawPath).c_str(); // fixes weird behaviour on win when e.g. setting to "D:"
-            parts = splitAbsolutePath(
-                utils::fixDirStr(
-                    rawPathFix.c_str()
-                ).c_str()
-            );
+            parts = splitAbsolutePath(rawPath);
         }
 
         void setBackToInd(size_t ind) {
@@ -836,16 +832,36 @@ namespace ImGuiFD {
                 else {
                     inputText = "";
                 }
+                return;
             }
-            else {
-                inputText = "\"";
+
+            bool searchingForFoldersNotFiles = !(mode == ImGuiFDMode_LoadFile || mode == ImGuiFDMode_SaveFile);
+            {
+                // only selected files are valid
+                bool hasValidSelections = false;
                 for (size_t i = 0; i < selected.size(); i++) {
-                    if(i>0)
-                        inputText += "\", \"";
-                    inputText += entrys.getRaw(selected[i]).name;
+                    if(entrys.getRaw(selected[i]).isFolder == searchingForFoldersNotFiles) {
+                        hasValidSelections = true;
+                        break;
+                    }
                 }
-                inputText += "\"";
+                if(!hasValidSelections) {
+                    inputText = "";
+                    return;
+                }
             }
+
+            inputText = "\"";
+            for (size_t i = 0; i < selected.size(); i++) {
+                auto& entry = entrys.getRaw(selected[i]);
+                if(entry.isFolder != searchingForFoldersNotFiles)
+                    continue;
+
+                if(inputText.size() > 1)
+                    inputText += "\", \"";
+                inputText += entry.name;
+            }
+            inputText += "\"";
         }
         void beginEditOnStr() {
             isEditingPath = true;
@@ -857,6 +873,8 @@ namespace ImGuiFD {
         }
         
         void update() {
+            if(showDirsFirstHasChanged)
+                entrys.sorted = false;
             if (needsEntrysUpdate) {
                 needsEntrysUpdate = false;
                 updateEntrys();
@@ -1015,7 +1033,9 @@ namespace ImGuiFD {
     }
     
     static void DrawSettings() {
-        ImGui::Checkbox("Show dir first", &settings.showDirFirst);
+        if(ImGui::Checkbox("Show dir first", &settings.showDirFirst)) {
+            showDirsFirstHasChanged = true;
+        }
         ImGui::Checkbox("Adjust icon width", &settings.adjustIconWidth);
 
         ImGui::Separator();
@@ -1573,7 +1593,7 @@ namespace ImGuiFD {
                         }
 
                         ImGui::SetCursorPos(cursorEnd);
-            ImGui::Dummy(ImVec2(0,0));
+                        ImGui::Dummy(ImVec2(0,0));
 
                         //ImGuiWindow* window = ImGui::GetCurrentWindow();
                         //ImVec2 off = { window->Pos.x - window->Scroll.x, window->Pos.y - window->Scroll.y };
