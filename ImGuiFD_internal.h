@@ -551,7 +551,7 @@ namespace ds {
 
         size_t from = 0;
         size_t to = len-1;
-        while (from < to) {
+        while (from <= to) {
             size_t mid = from + (to-from) / 2;
 
             int cmp = compare(value, mid);
@@ -559,14 +559,12 @@ namespace ds {
             if (cmp == 0) {
                 return mid;
             } else if (cmp < 0) {
+                if(mid == 0) goto fail;
                 to = mid - 1;
             } else {
                 from = mid + 1;
             }
         }
-
-        if (compare(value, from) == 0)
-            return from;
 
     fail:
         return (size_t)-1;
@@ -579,7 +577,7 @@ namespace ds {
             return 0;
 
         size_t from = 0;
-        size_t to = len-1;
+        size_t to = len;
         while (from < to) {
             size_t mid = from + (to-from) / 2;
 
@@ -588,12 +586,11 @@ namespace ds {
             if (cmp == 0) {
                 return mid;
             } else if (cmp < 0) {
-                to = mid - 1;
+                to = mid;
             } else {
                 from = mid + 1;
             }
         }
-
         return from;
     }
 
