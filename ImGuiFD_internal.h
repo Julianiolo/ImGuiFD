@@ -36,6 +36,8 @@ inline void imfd_free(void* p) {
 
 #define IMFD_ALLOC(_x_) imfd_alloc(_x_)//IM_ALLOC(_x_)
 #define IMFD_FREE(_x_) imfd_free(_x_)//IM_FREE(_x_)
+#define IMFD_NEW(_TYPE) new(ImNewWrapper(), imfd_alloc(sizeof(_TYPE))) _TYPE
+template<typename T> void IMFD_DELETE(T* p) { if (p) { p->~T(); imfd_free(p); } }
 
 #define IMFD_ASSERT_PARANOID(_x_) IM_ASSERT(_x_)
 
@@ -660,10 +662,10 @@ namespace ds {
             IM_ASSERT(ind != (size_t)-1);
             data.erase(data.begin() + ind);
         }
-        inline T erase_get(ImGuiID id) {
+        inline ds::pair<ImGuiID,T> erase_get(ImGuiID id) {
             size_t ind = getIndContains(id);
             IM_ASSERT(ind != (size_t)-1);
-            T t = ds::move(data[ind]);
+            ds::pair<ImGuiID,T> t = ds::move(data[ind]);
             data.erase(data.begin() + ind);
             return t;
         }

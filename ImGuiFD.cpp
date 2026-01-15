@@ -691,6 +691,9 @@ namespace ImGuiFD {
             EntryManager(const char* filter) : filter(filter) {
                 
             }
+            // don't allow coppying because of dir
+            EntryManager(const EntryManager&) = delete;
+            EntryManager& operator=(const EntryManager&) = delete;
             ~EntryManager() {
                 IMFD_FREE(dir);
                 dir = NULL;
@@ -1956,16 +1959,15 @@ void ImGuiFD::OpenDialog(const char* str_id, ImGuiFDMode mode, const char* path,
 
     if (openDialogs.contains(id)) {
         if (openDialogs.getByID(id)->toDelete) {
-            auto* f = openDialogs.erase_get(id);
-            IMFD_FREE(f);
+            FileDialog* f = openDialogs.erase_get(id).second;
+            IMFD_DELETE(f);
         }
         else {
-            return;
+            return; // already open
         }
     }
 
-    FileDialog* f = (FileDialog*)IMFD_ALLOC(sizeof(FileDialog));
-    IM_PLACEMENT_NEW(f) FileDialog(id, str_id, filter, path, mode, flags, maxSelections);
+    FileDialog* f = IMFD_NEW(FileDialog)(id, str_id, filter, path, mode, flags, maxSelections);
     openDialogs.insert(id, f);
 }
 
@@ -2041,8 +2043,8 @@ void ImGuiFD::EndDialog() {
     IM_ASSERT(fd != 0 && "ImGuiFD: Begin/End mismatch");
 
     if (fd->toDelete) {
-        FileDialog* f = openDialogs.erase_get(fd->id);
-        IMFD_FREE(f);
+        FileDialog* f = openDialogs.erase_get(fd->id).second;
+        IMFD_DELETE(f);
     }
 
     fd = 0;
@@ -2137,7 +2139,7 @@ void ImGuiFD::DrawDebugWin(const char* dialog_str_id) {
 
 void ImGuiFD::Shutdown() {
     for(ds::pair<ImGuiID,FileDialog*>& p : openDialogs) {
-        IMFD_FREE(p.second);
+        IMFD_DELETE(p.second);
     }
     openDialogs.clear(); // this is crucial to call all the deconstructors before the stuff they depend on gets shut down
 }
