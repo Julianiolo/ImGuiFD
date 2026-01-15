@@ -68,7 +68,7 @@ namespace ImGuiFD {
     struct GlobalSettings {
         bool showDirFirst = true;
         bool adjustIconWidth = true;
-        ImVec4 iconTextCol = { .08f, .08f, .78f, 1 };
+        ImVec4 iconTextCol = { .08f, .08f, .78f, 1.0f };
         const float iconModeSizeDef = 100;
         float iconModeSize = iconModeSizeDef;
 
@@ -79,7 +79,8 @@ namespace ImGuiFD {
         uint8_t displayMode = DisplayMode_Icons;
 
 
-        ImVec4 descTextCol = { .7f, .7f, .7f, 1 };
+        ImVec4 descTextCol = { .7f, .7f, .7f, 1.0f };
+        ImVec4 errorTextCol = { 1.0f, 0.0f, 0.0f, 1.0f };
 
         bool asciiArtIcons = true;
     };

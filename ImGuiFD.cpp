@@ -1,5 +1,6 @@
 #define IMGUI_DEFINE_MATH_OPERATORS 1
 #include <imgui_internal.h>
+#include <imgui.h>
 #include "ImGuiFD.h"
 #include "ImGuiFD_internal.h"
 
@@ -955,7 +956,7 @@ namespace ImGuiFD {
         buf[bufSize-1] = 0;  // safety nullterm
     }
     static void formatSize(char* buf, size_t bufSize, uint64_t size) {
-        ds::own_snprintf(buf, bufSize, "%" PRIu64 " Bytes", size);
+        ds::own_snprintf(buf, bufSize, "%" PRIu64 "B", size);
     }
 
     static void OpenNow() {
@@ -1352,6 +1353,12 @@ namespace ImGuiFD {
     }
 
     static void DrawDirFiles_IconsItemDesc(const DirEntry& entry) {
+        if(entry.error != NULL) {
+            ImGui::TextColored(ImVec4(1, 0, 0, 1), "Error: ");
+            ImGui::TextUnformatted(entry.error);
+            return;
+        }
+
         ImGui::PushStyleColor(ImGuiCol_Text, settings.descTextCol);
 
         if (ImGui::BeginTable("ToolTipDescTable", 2)) {
@@ -1499,7 +1506,7 @@ namespace ImGuiFD {
                                 
                                 ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x/2 - img_width/2); // center image vertically
                                 ImGui::Image(fileData->thumbnail->texID, { img_width, img_height });
-                                ImGui::TextUnformatted(entry.name);
+                                ImGui::TextUnformatted(entry.name ? entry.name : "?");
 
                                 ImGui::Separator();
 
@@ -1528,7 +1535,7 @@ namespace ImGuiFD {
                             // Tooltip
                             if (ImGui::IsItemHovered()) {
                                 ImGui::BeginTooltip();
-                                ImGui::TextUnformatted(entry.name);
+                                ImGui::TextUnformatted(entry.name ? entry.name : "?");
                                 ImGui::Separator();
 
                                 DrawDirFiles_IconsItemDesc(entry);
@@ -1565,7 +1572,7 @@ namespace ImGuiFD {
                             const float maxWidth = cursorEnd.x - cursorStart.x;
 
                             if (!isRenamingThis) {
-                                ImGuiExt::TextWrappedCentered(entry.name, maxWidth, maxTextLines);
+                                ImGuiExt::TextWrappedCentered(entry.name ? entry.name : "?", maxWidth, maxTextLines);
                             }
                             else {
                                 const float textWidth = ImGui::CalcTextSize(fd->renameStr.c_str()).x + ImGui::GetStyle().FramePadding.x*2;
@@ -1613,9 +1620,22 @@ namespace ImGuiFD {
         bool openNewFolderPopup = false;
         if (ImGui::BeginPopup("ContextMenu")) {
             if (fd->selected.size() == 1) {
+                auto& entry = fd->getSelectedInd(0);
+                bool canRename = entry.error == NULL;
+                ImGui::BeginDisabled(!canRename);
                 if (ImGui::MenuItem("Rename")) {
-                    fd->renameId = fd->getSelectedInd(0).id;
-                    fd->renameStr = fd->getSelectedInd(0).name;
+                    IM_ASSERT(entry.name != NULL);
+                    fd->renameId = entry.id;
+                    fd->renameStr = entry.name;
+                }
+                ImGui::EndDisabled();
+                if(!canRename && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+                    ImGui::BeginTooltip();
+                    ImGui::TextUnformatted("There was an error while reading this entry, so we cannot rename it.");
+                    ImGui::Separator();
+                    ImGui::TextColored(settings.errorTextCol, "Error:");
+                    ImGui::TextUnformatted(entry.error);
+                    ImGui::EndTooltip();
                 }
                 ImGui::Separator();
             }

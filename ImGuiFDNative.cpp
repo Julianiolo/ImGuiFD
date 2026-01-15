@@ -190,10 +190,14 @@ static void statDirEnt(ImGuiFD::DirEntry* entry) {
     struct stat st;
     int ret = lstat(entry->path, &st);
 
-    if (ret != 0)
+    if (ret != 0) {
+        if(entry->error == NULL) {
+            entry->error = ds::format_("lstat: %s", strerror(errno));
+        }
         return;
+    }
 
-    entry->size = entry->isFolder? -1 : st.st_size;
+    entry->size = entry->isFolder ? (uint64_t)-1 : st.st_size;
     entry->lastAccessed = st.st_atime;
     entry->lastModified = st.st_mtime;
 #elif defined(_WIN32)
