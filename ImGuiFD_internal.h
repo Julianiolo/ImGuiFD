@@ -260,7 +260,6 @@ namespace ds {
             IM_ASSERT(it >= Data && it < Data + Size); 
             it->~T(); 
             const ptrdiff_t off = it - Data; 
-            //memmove(Data + off, Data + off + 1, (Size - (size_t)off - 1) * sizeof(T)); 
             for(size_t i = off; i+1 < Size; i++) {
                 Data[i] = ds::move(Data[i+1]);
             }
@@ -268,53 +267,49 @@ namespace ds {
             return Data + off;
         }
         inline T*           erase(const T* it, const T* it_last){ 
-            IM_ASSERT(it >= Data && it < Data + Size && it_last > it && it_last <= Data + Size); 
-            it->~T(); const ptrdiff_t count = it_last - it; 
-            const ptrdiff_t off = it - Data; 
-            //memmove(Data + off, Data + off + count, ((size_t)Size - (size_t)off - count) * sizeof(T)); 
+            IM_ASSERT(it >= Data && it < Data + Size && it_last > it && it_last <= Data + Size);
+            it->~T();
+            const ptrdiff_t count = it_last - it;
+            const ptrdiff_t off = it - Data;
             for(size_t i = off; i+count < Size; i++) {
                 Data[i] = ds::move(Data[i+count]);
             }
-            Size -= (int)count; 
-            return Data + off; 
+            Size -= (int)count;
+            return Data + off;
+        }
+        inline void         _move_to_back_one(size_t off) {
+            if (Size == Capacity) 
+                reserve(_grow_capacity(Size + 1)); 
+            if (off < Size) {
+                //memmove(Data + off + 1, Data + off, ((size_t)Size - (size_t)off) * sizeof(T));
+                for(size_t i = off; i+1 < Size; i++) {
+                    Data[i+1] = ds::move(Data[i]);
+                }
+            }
         }
         inline T*           insert(const T* it, const T& v)     { 
             IM_ASSERT(it >= Data && it <= Data + Size); 
-            const ptrdiff_t off = it - Data; 
-            if (Size == Capacity) 
-                reserve(_grow_capacity(Size + 1)); 
-            if (off < (ptrdiff_t)Size) {
-                //memmove(Data + off + 1, Data + off, ((size_t)Size - (size_t)off) * sizeof(T));
-                for(size_t i = off; i+1 < Size; i++) {
-                    Data[i+1] = ds::move(Data[i]);
-                }
-            }
+            const size_t off = it - Data; 
+            _move_to_back_one(off);
                  
             IM_PLACEMENT_NEW(&Data[off]) T(v);
-            Size++; 
-            return Data + off; 
+            Size++;
+            return Data + off;
         }
         inline T*           insert(const T* it, T&& v)     { 
             IM_ASSERT(it >= Data && it <= Data + Size); 
-            const ptrdiff_t off = it - Data; 
-            if (Size == Capacity) 
-                reserve(_grow_capacity(Size + 1)); 
-            if (off < (ptrdiff_t)Size) {
-                //memmove(Data + off + 1, Data + off, ((size_t)Size - (size_t)off) * sizeof(T));
-                for(size_t i = off; i+1 < Size; i++) {
-                    Data[i+1] = ds::move(Data[i]);
-                }
-            }
+            const size_t off = it - Data; 
+            _move_to_back_one(off);
                  
             IM_PLACEMENT_NEW(&Data[off]) T(ds::move(v));
-            Size++; 
-            return Data + off; 
+            Size++;
+            return Data + off;
         }
-        inline bool         contains(const T& v) const          { const T* data = Data;  const T* data_end = Data + Size; while (data < data_end) if (*data++ == v) return true; return false; }
+        //inline bool         contains(const T& v) const          { const T* data = Data;  const T* data_end = Data + Size; while (data < data_end) if (*data++ == v) return true; return false; }
         inline T*           find(const T& v)                    { T* data = Data;  const T* data_end = Data + Size; while (data < data_end) if (*data == v) break; else ++data; return data; }
         inline const T*     find(const T& v) const              { const T* data = Data;  const T* data_end = Data + Size; while (data < data_end) if (*data == v) break; else ++data; return data; }
         inline bool         find_erase(const T& v)              { const T* it = find(v); if (it < Data + Size) { erase(it); return true; } return false; }
-        inline size_t       index_from_ptr(const T* it) const   { IM_ASSERT(it >= Data && it < Data + Size); const ptrdiff_t off = it - Data; return (size_t)off; }
+        //inline size_t       index_from_ptr(const T* it) const   { IM_ASSERT(it >= Data && it < Data + Size); const ptrdiff_t off = it - Data; return (size_t)off; }
     };
 
     template<typename T0, typename T1>
@@ -665,6 +660,13 @@ namespace ds {
             IM_ASSERT(ind != (size_t)-1);
             data.erase(data.begin() + ind);
         }
+        inline T erase_get(ImGuiID id) {
+            size_t ind = getIndContains(id);
+            IM_ASSERT(ind != (size_t)-1);
+            T t = ds::move(data[ind]);
+            data.erase(data.begin() + ind);
+            return t;
+        }
 
         inline bool contains(ImGuiID id) {
             return getIndContains(id) != (size_t)-1;
@@ -672,6 +674,13 @@ namespace ds {
 
         inline void clear() {
             data.clear();
+        }
+
+        inline pair<ImGuiID, T>* begin() {
+            return data.begin();
+        }
+        inline pair<ImGuiID, T>* end() {
+            return data.end();
         }
     };
 
@@ -1173,12 +1182,12 @@ namespace ImGuiFD {
         bool isAbsolutePath(const char* path);
         ds::ErrResult<ds::string> getAbsolutePath(const char* path);
         bool isValidDir(const char* dir);
-
-        ds::ErrResult<ds::vector<DirEntry>> loadDirEntrys(const char* path);
         bool fileExists(const char* path);
 
-        bool rename(const char* name, const char* newName);
+        // the DirEntrys will have their dir member be set to the here given dir pointer (no string copy)
+        ds::ErrResult<ds::vector<DirEntry>> loadDirEntrys(const char* dir);
 
+        bool rename(const char* name, const char* newName);
         bool makeFolder(const char* path);
     }
 }

@@ -249,10 +249,10 @@ static int cmpEntrys(const void* a_, const void* b_) {
 }
 
 
-ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEntrys(const char* path) {
+ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEntrys(const char* dir) {
     ds::vector<DirEntry> entrys;
 
-    auto hash = ImHashStr(path);
+    auto hash = ImHashStr(dir);
 
 #ifdef _WIN32
     if (strcmp(path, "/") == 0) {
@@ -274,7 +274,7 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEntrys(cons
             while (name.size() > 0 && name[name.size()-1] == '\\')
                 name = name.substr(0, name.size()-1);
 
-            entry.dir = ImStrdup("/");
+            entry.dir = dir;
             entry.path = ImStrdup((ds::string("/") + name + "/").c_str());
             entry.name = entry.path+1;
 
@@ -313,7 +313,7 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEntrys(cons
                 name = backupWStrToUtf8_Buf(fdata.cFileName);
             }
             entry->isFolder = !!(fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
-            entry->dir = ImStrdup(path);
+            entry->dir = dir;
             entry->path = combinePath(entry->dir, name, entry->isFolder);
             entry->name = entry->path + strlen(entry->dir);
             statDirEnt(entry);
@@ -332,7 +332,7 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEntrys(cons
 #else
 
     dirent** namelist = 0; // pointer for array of dirent*
-    const int numRead = scandir(path, &namelist, NULL, ::alphasort);
+    const int numRead = scandir(dir, &namelist, NULL, ::alphasort);
 
     if (namelist == NULL || numRead < 0) // couldn't read directory
         return ds::Err(ds::format("scandir failed: %s", strerror(errno)));;
@@ -346,7 +346,7 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEntrys(cons
             DirEntry* entry = &entrys.back();
             entry->id = (hash<<16)+i;
             entry->isFolder = de->d_type == DT_DIR;
-            entry->dir = ImStrdup(path);
+            entry->dir = dir;
             entry->path = combinePath(entry->dir, de->d_name, entry->isFolder);
             entry->name = entry->path + strlen(entry->dir);
 
@@ -360,7 +360,7 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEntrys(cons
     if(entrys.size() > 1)
         qsort(&entrys[0], entrys.size(), sizeof(entrys[0]), cmpEntrys);
     
-    return ds::Ok(move(entrys));
+    return ds::Ok(ds::move(entrys));
 }
 
 bool ImGuiFD::Native::isValidDir(const char* dir) {

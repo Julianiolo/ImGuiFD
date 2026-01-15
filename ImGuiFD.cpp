@@ -679,6 +679,7 @@ namespace ImGuiFD {
         ds::OverrideStack<ds::string> redoStack;
         
         class EntryManager {
+            char* dir = NULL;
             ds::vector<DirEntry> data;
             ds::vector<size_t> dataModed;
 
@@ -690,16 +691,27 @@ namespace ImGuiFD {
             EntryManager(const char* filter) : filter(filter) {
                 
             }
-
-            // return true if it was able to load the directory
-            bool update(const char* dir) {
-                auto res = Native::loadDirEntrys(dir);
-                if(res.has_value())
-                    setEntrysTo(move(res.value()));
-                return res.has_value();
+            ~EntryManager() {
+                IMFD_FREE(dir);
+                dir = NULL;
             }
 
-            void setEntrysTo(ds::vector<DirEntry>&& src) {
+            // return true if it was able to load the directory
+            bool update(const char* dir_) {
+                char* new_dir = ImStrdup(dir_);
+                auto res = Native::loadDirEntrys(new_dir);
+                if(res.has_err()) {
+                    IMFD_FREE(new_dir);
+                    return false;
+                }
+                
+                setEntrysTo(new_dir, move(res.value()));
+                return true;
+            }
+
+            void setEntrysTo(char* new_dir, ds::vector<DirEntry>&& src) {
+                IMFD_FREE(dir);
+                dir = new_dir;
                 data = move(src);
                 updateFiltering();
             }
@@ -946,7 +958,7 @@ namespace ImGuiFD {
     };
 
     FileDialog* fd = 0;
-    ds::map<FileDialog> openDialogs;
+    ds::map<FileDialog*> openDialogs;
 
     static void formatTime(char* buf, size_t bufSize, double unixTime) {
         IM_ASSERT(bufSize > 0);
@@ -1825,11 +1837,9 @@ namespace ImGuiFD {
         }
     }
 
-    
-
     static void CloseDialogID(ImGuiID id) {
         if (openDialogs.contains(id))
-            openDialogs.getByID(id).toDelete = true;
+            openDialogs.getByID(id)->toDelete = true;
     }
 }
 
@@ -1856,7 +1866,7 @@ ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(const DirEntry& src) {
     
     id = src.id;
     error = src.error ? ImStrdup(src.error) : 0;
-    dir   = src.dir   ? ImStrdup(src.dir)   : 0;
+    dir   = src.dir;
     path  = src.path  ? ImStrdup(src.path)  : 0;
     name  = src.name  ? path + (src.name - src.path) : 0;
     isFolder = src.isFolder;
@@ -1889,7 +1899,6 @@ ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(DirEntry&& src) noexcept {
 ImGuiFD::DirEntry::~DirEntry() {
     IM_FREE((void*)error);
     error = NULL;
-    IM_FREE((void*)dir );
     dir = NULL;
     if(path != NULL) {
         IM_ASSERT(name >= path);
@@ -1944,19 +1953,20 @@ size_t ImGuiFD::FDInstance::sizeBytes() const {
 void ImGuiFD::OpenDialog(const char* str_id, ImGuiFDMode mode, const char* path, const char* filter, ImGuiFDDialogFlags flags, size_t maxSelections) {
     IM_ASSERT(path != NULL);
     ImGuiID id = ImHashStr(str_id);
-#if 0
-    IM_ASSERT(!openDialogs.contains(id));
-#else
+
     if (openDialogs.contains(id)) {
-        if (openDialogs.getByID(id).toDelete) {
-            openDialogs.erase(id);
+        if (openDialogs.getByID(id)->toDelete) {
+            auto* f = openDialogs.erase_get(id);
+            IMFD_FREE(f);
         }
         else {
             return;
         }
     }
-#endif
-    openDialogs.insert(id, FileDialog(id, str_id, filter, path, mode, flags, maxSelections));
+
+    FileDialog* f = (FileDialog*)IMFD_ALLOC(sizeof(FileDialog));
+    IM_PLACEMENT_NEW(f) FileDialog(id, str_id, filter, path, mode, flags, maxSelections);
+    openDialogs.insert(id, f);
 }
 
 void ImGuiFD::CloseDialog(const char* str_id) {
@@ -1979,7 +1989,7 @@ bool ImGuiFD::BeginDialog(ImGuiID id) {
     if (!openDialogs.contains(id))
         return false;
     
-    fd = &openDialogs.getByID(id);
+    fd = openDialogs.getByID(id);
 
     ImGuiWindowFlags flags = 0;
     //if (fd->isModal) flags |= ImGuiWindowFlags_Modal;
@@ -2030,8 +2040,10 @@ bool ImGuiFD::BeginDialog(ImGuiID id) {
 void ImGuiFD::EndDialog() {
     IM_ASSERT(fd != 0 && "ImGuiFD: Begin/End mismatch");
 
-    if (fd->toDelete)
-        openDialogs.erase(fd->id);
+    if (fd->toDelete) {
+        FileDialog* f = openDialogs.erase_get(fd->id);
+        IMFD_FREE(f);
+    }
 
     fd = 0;
 }
@@ -2081,7 +2093,7 @@ void ImGuiFD::DrawDebugWin(const char* dialog_str_id) {
     if (!openDialogs.contains(id))
         return;
 
-    fd = &openDialogs.getByID(id);
+    fd = openDialogs.getByID(id);
 
     if (ImGui::Begin((fd->str_id + "_DEBUG").c_str())) {
         float perc = ((float)fd->fileDataCache.size() / (float)fd->fileDataCache.maxSize())*100;
@@ -2124,5 +2136,8 @@ void ImGuiFD::DrawDebugWin(const char* dialog_str_id) {
 }
 
 void ImGuiFD::Shutdown() {
+    for(ds::pair<ImGuiID,FileDialog*>& p : openDialogs) {
+        IMFD_FREE(p.second);
+    }
     openDialogs.clear(); // this is crucial to call all the deconstructors before the stuff they depend on gets shut down
 }
