@@ -10,6 +10,7 @@
     #include <windows.h>
 
     #include <direct.h> // for _getcwd _fullpath
+    #include <wchar.h>  // for _wrename
 
     #define GETCWD _getcwd
 #else
@@ -142,7 +143,7 @@ bool ImGuiFD::Native::isAbsolutePath(const char* path) {
 
 ds::ErrResult<ds::string> ImGuiFD::Native::getAbsolutePath(const char* path_) {
     if (path_[0] == '/' && path_[0] == 0)  // path_ == "/"
-        return ds::Ok<const char*>("/");
+        return ds::Ok<ds::string>("/");
 
     
 #ifdef _WIN32
@@ -174,15 +175,6 @@ ds::ErrResult<ds::string> ImGuiFD::Native::getAbsolutePath(const char* path_) {
 #endif
 
     return ds::Ok(ds::move(out));
-}
-
-bool ImGuiFD::Native::fileExists(const char* path) {
-    struct stat st;
-    return stat(path, &st) == 0 && (st.st_mode & S_IFREG);
-}
-
-bool ImGuiFD::Native::rename(const char* name, const char* newName) {
-    return ::rename(name, newName) == 0;
 }
 
 static void statDirEnt(ImGuiFD::DirEntry* entry) {
@@ -255,7 +247,7 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEntrys(cons
     auto hash = ImHashStr(dir);
 
 #ifdef _WIN32
-    if (strcmp(path, "/") == 0) {
+    if (strcmp(dir, "") == 0) {
         // handle drive letters
 
         char buf[1024];
@@ -290,7 +282,7 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEntrys(cons
     else {
         // handle normal folder
         WIN32_FIND_DATAW fdata;
-        auto ret = FindFirstFileUtf8((ds::string(path)+"/*").c_str(), &fdata);
+        auto ret = FindFirstFileUtf8((ds::string(dir)+"/*").c_str(), &fdata);
         if(ret.has_err()) return ret.error_prop();
         HANDLE findH = ret.value();
 
@@ -316,7 +308,9 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEntrys(cons
             entry->dir = dir;
             entry->path = combinePath(entry->dir, name, entry->isFolder);
             entry->name = entry->path + strlen(entry->dir);
-            statDirEnt(entry);
+            entry->size = ((uint64_t)fdata.nFileSizeHigh << 32) | fdata.nFileSizeLow;
+            entry->lastAccessed = winFileTimeToUnix(fdata.ftLastAccessTime);
+            entry->lastModified = winFileTimeToUnix(fdata.ftLastWriteTime);
 
             i++;
         } while (FindNextFileW(findH, &fdata) != 0);
@@ -363,21 +357,73 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEntrys(cons
     return ds::Ok(ds::move(entrys));
 }
 
+bool ImGuiFD::Native::fileExists(const char* path) {
+#ifdef _WIN32
+    auto res = toWinPath(path);
+    if(res.has_err())
+        return false;
+    struct __stat64 st;
+    return _wstat64(res.value(), &st) == 0 && (st.st_mode & S_IFREG);
+#else
+    struct stat st;
+    return stat(path, &st) == 0 && (st.st_mode & S_IFREG);
+#endif
+}
+
 bool ImGuiFD::Native::isValidDir(const char* dir) {
+#ifdef _WIN32
+    auto res = toWinPath(dir);
+    if(res.has_err())
+        return false;
+    struct __stat64 st;
+    return _wstat64(res.value(), &st) == 0 && (st.st_mode & S_IFDIR);
+#else
     struct stat info;
     int ret = stat(dir, &info);
     return ret == 0 && (info.st_mode & S_IFDIR);
+#endif
 }
 
-bool ImGuiFD::Native::makeFolder(const char* path) {
-    int status;
-#if defined(_MSC_VER) || defined(__MINGW32__)
-    status = _mkdir(makePathStrOSComply(path).c_str());
+ds::ErrResult<ds::None> ImGuiFD::Native::rename(const char* name, const char* newName) {
+#ifdef _WIN32
+    ds::vector<wchar_t> name_w;
+    {
+        auto res = toWinPath(name);
+        if(res.has_err())
+            return res.error_prop();
+        size_t name_len = wcslen(res.value());
+        name_w.resize(name_len+1);
+        memcpy(name_w.data(), res.value(), (name_len+1)*sizeof(wchar_t));
+    }
+    auto res = toWinPath(newName);
+    if(res.has_err())
+        return res.error_prop();
+    if(::_wrename(name_w.data(), res.value()) != 0) {
+        return ds::Err(ds::format("_wrename: %s", strerror(errno)));
+    }
 #else
-    status = mkdir(path, S_IRWXU);
+    if(::rename(name, newName) != 0) {
+        return ds::Err(ds::format("rename: %s", strerror(errno)));
+    }
+#endif
+    return ds::Ok();
+}
+
+ds::ErrResult<ds::None> ImGuiFD::Native::makeFolder(const char* path) {
+#if defined(_MSC_VER) || defined(__MINGW32__)
+    auto res = toWinPath(path);
+    if(res.has_err())
+        return res.error_prop();
+    if(_wmkdir(res.value()) != 0) {
+        return ds::Err(ds::format("_wmkdir: %s", strerror(errno)));
+    }
+#else
+    if(mkdir(path, S_IRWXU) != 0) {
+        return ds::Err(ds::format("_wmkdir: %s", strerror(errno)));
+    }
 #endif
 
-    return status == 0;
+    return ds::Ok();
 }
 
 // ds::string ImGuiFD::Native::makePathStrOSComply(const char* path) {
