@@ -1194,6 +1194,8 @@ namespace ImGuiFD {
 
         ds::ErrResult<ds::None> rename(const char* name, const char* newName);
         ds::ErrResult<ds::None> makeFolder(const char* path);
+
+        void Shutdown();
     }
 }
 

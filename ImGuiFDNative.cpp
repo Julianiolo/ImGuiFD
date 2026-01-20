@@ -426,6 +426,11 @@ ds::ErrResult<ds::None> ImGuiFD::Native::makeFolder(const char* path) {
     return ds::Ok();
 }
 
+void ImGuiFD::Native::Shutdown() {
+    str_buf.clear();
+    wstr_buf.clear();
+}
+
 // ds::string ImGuiFD::Native::makePathStrOSComply(const char* path) {
 // #ifdef _WIN32
 //     // remove root '/'

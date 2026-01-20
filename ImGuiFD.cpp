@@ -2138,6 +2138,7 @@ void ImGuiFD::DrawDebugWin(const char* dialog_str_id) {
 }
 
 void ImGuiFD::Shutdown() {
+    ImGuiFD::Native::Shutdown();
     for(ds::pair<ImGuiID,FileDialog*>& p : openDialogs) {
         IMFD_DELETE(p.second);
     }
