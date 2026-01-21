@@ -7,6 +7,9 @@
 // uncomment this for using stl internally
 //#define IMGUIFD_ENABLE_STL 1
 
+#ifndef IMFD_USE_MOVE
+#define IMFD_USE_MOVE (__cplusplus >= 201103L)
+#endif
 
 #ifdef _MSC_VER
     #ifndef _CRT_SECURE_NO_WARNINGS
@@ -46,9 +49,11 @@ namespace ImGuiFD {
     struct DirEntry {
         DirEntry();
         DirEntry(const DirEntry& src);
-        DirEntry(DirEntry&& src) noexcept;
         DirEntry& operator=(const DirEntry& src);
+#if IMFD_USE_MOVE
+        DirEntry(DirEntry&& src) noexcept;
         DirEntry& operator=(DirEntry&& src) noexcept;
+#endif
         ~DirEntry();
 
         ImGuiID id = (ImGuiID)-1;

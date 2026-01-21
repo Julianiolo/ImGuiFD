@@ -17,8 +17,8 @@
 #include <utility>
 #endif
 
-inline size_t imfd_num_alloc = 0;
-inline size_t imfd_num_free = 0;
+extern size_t imfd_num_alloc;
+extern size_t imfd_num_free;
 
 inline void* imfd_alloc(size_t s) {
     imfd_num_alloc++;
@@ -44,9 +44,6 @@ template<typename T> void IMFD_DELETE(T* p) { if (p) { p->~T(); IMFD_FREE(p); } 
 #else
 #define IMFD_UNIX_PATHS 1
 #endif
-
-#define IMFD_USE_MOVE (__cplusplus >= 201103L)
-
 
 
 namespace ds {

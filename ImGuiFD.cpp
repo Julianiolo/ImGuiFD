@@ -14,6 +14,10 @@
 #endif
 #include <inttypes.h> // used for u64 in format string
 
+// form ImGuiFD_internal.h
+size_t imfd_num_alloc = 0;
+size_t imfd_num_free = 0;
+
 namespace ImGuiFD {
     namespace utils {
         const char* findCharInStrFromBack(char c, const char* str, const char* strEnd = nullptr) {
@@ -1855,15 +1859,6 @@ ImGuiFD::DirEntry::DirEntry() {
 ImGuiFD::DirEntry::DirEntry(const DirEntry& src){
     operator=(src);
 }
-ImGuiFD::DirEntry::DirEntry(DirEntry&& src) noexcept : 
-    id(src.id), error(src.error), 
-    dir(src.dir), path(src.path), name(src.name),
-    isFolder(src.isFolder),
-    size(src.size), lastAccessed(src.lastAccessed), lastModified(src.lastModified)
-{
-    src.id = (ImGuiID)-1;
-    src.error = src.dir = src.path = src.name = NULL;
-}
 ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(const DirEntry& src) {
     this->~DirEntry();
     
@@ -1879,6 +1874,16 @@ ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(const DirEntry& src) {
     lastModified = src.lastModified;
 
     return *this;
+}
+#if IMFD_USE_MOVE
+ImGuiFD::DirEntry::DirEntry(DirEntry&& src) noexcept : 
+    id(src.id), error(src.error), 
+    dir(src.dir), path(src.path), name(src.name),
+    isFolder(src.isFolder),
+    size(src.size), lastAccessed(src.lastAccessed), lastModified(src.lastModified)
+{
+    src.id = (ImGuiID)-1;
+    src.error = src.dir = src.path = src.name = NULL;
 }
 ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(DirEntry&& src) noexcept {
     this->~DirEntry();
@@ -1899,6 +1904,7 @@ ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(DirEntry&& src) noexcept {
 
     return *this;
 }
+#endif
 ImGuiFD::DirEntry::~DirEntry() {
     IM_FREE((void*)error);
     error = NULL;
