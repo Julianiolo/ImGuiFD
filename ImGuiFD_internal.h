@@ -36,8 +36,8 @@ inline void imfd_free(void* p) {
 
 #define IMFD_ALLOC(_x_) imfd_alloc(_x_)//IM_ALLOC(_x_)
 #define IMFD_FREE(_x_) imfd_free(_x_)//IM_FREE(_x_)
-#define IMFD_NEW(_TYPE) new(ImNewWrapper(), imfd_alloc(sizeof(_TYPE))) _TYPE
-template<typename T> void IMFD_DELETE(T* p) { if (p) { p->~T(); imfd_free(p); } }
+#define IMFD_NEW(_TYPE) new(ImNewWrapper(), IMFD_ALLOC(sizeof(_TYPE))) _TYPE
+template<typename T> void IMFD_DELETE(T* p) { if (p) { p->~T(); IMFD_FREE(p); } }
 
 #define IMFD_ASSERT_PARANOID(_x_) IM_ASSERT(_x_)
 
@@ -162,7 +162,6 @@ namespace ds {
 
         inline bool         empty() const                       { return Size == 0; }
         inline size_t       size() const                        { return Size; }
-        inline size_t       size_in_bytes() const               { return Size * (int)sizeof(T); }
         inline size_t       max_size() const                    { return 0x7FFFFFFF / (int)sizeof(T); }
         inline size_t       capacity() const                    { return Capacity; }
         inline T&           operator[](size_t i)                { IM_ASSERT(i < Size); return Data[i]; }
@@ -470,10 +469,6 @@ namespace ds {
         }
     };
 #endif
-
-    inline size_t size_bytes(const ds::string& s) {
-        return sizeof(s) + s.size();
-    }
 
     inline string replace(const char* str, const char* find, const char* replace) {
         string out;
@@ -1099,10 +1094,10 @@ namespace ds {
         }
     };
 
-#if IMFD_USE_MOVE
     inline _ResultOk<None> Ok() {
         return _ResultOk<None>(None());
     }
+#if IMFD_USE_MOVE
     template <typename T>
     _ResultOk<typename remove_cvref<T>::type> Ok(T&& t) {
         return _ResultOk<typename remove_cvref<T>::type>(ds::forward<T>(t));
@@ -1113,12 +1108,11 @@ namespace ds {
     }
 #else
     template <typename T>
-    _ResultOk<T> Ok(const T& value) {
+    _ResultOk<T> Ok(T value) {
         return _ResultOk<T>(value);
     }
-
     template <typename T>
-    _ResultErr<T> Err(const T& error) {
+    _ResultErr<T> Err(T error) {
         return _ResultErr<T>(error);
     }
 #endif
@@ -1162,8 +1156,6 @@ namespace ImGuiFD {
             }
         }
 #endif
-
-        size_t sizeBytes() const;
     };
 
     namespace Native {
