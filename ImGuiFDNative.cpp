@@ -40,7 +40,7 @@ ds::string getErrorMsg(DWORD errorCode) {
 
     //Free the Win32's string's buffer.
     LocalFree(messageBuffer);
-    return ds::move(errMsg);
+    return imfd_move(errMsg);
 }
 
 static ds::vector<wchar_t> wstr_buf;
@@ -78,7 +78,7 @@ static ds::ErrResult<ds::string> fromWinPath(const wchar_t* str) {
 
     IM_ASSERT(result.data()[result.size()] == 0);
 
-    return ds::Ok(ds::move(result));
+    return ds::Ok(imfd_move(result));
 }
 static ds::vector<char> str_buf;
 static ds::ErrResult<const char*> fromWinPath_Buf(const wchar_t* str) {
@@ -166,7 +166,7 @@ ds::ErrResult<ds::string> ImGuiFD::Native::getAbsolutePath(const char* path_) {
     auto out_ = fromWinPath(path_full.data());
     if(out_.has_err())
         out_.error_prop();
-    ds::string out = move(out_.value());
+    ds::string out = imfd_move(out_.value());
 #else
     char* out_ = realpath(path_, NULL);
     if (out_ == NULL) return ds::Err(ds::format("realpath(%s) failed: %s", path_, strerror(errno)));
@@ -174,7 +174,7 @@ ds::ErrResult<ds::string> ImGuiFD::Native::getAbsolutePath(const char* path_) {
     free(out_);
 #endif
 
-    return ds::Ok(ds::move(out));
+    return ds::Ok(imfd_move(out));
 }
 
 static void statDirEnt(ImGuiFD::DirEntry* entry) {
@@ -354,7 +354,7 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEntrys(cons
     if(entrys.size() > 1)
         qsort(&entrys[0], entrys.size(), sizeof(entrys[0]), cmpEntrys);
     
-    return ds::Ok(ds::move(entrys));
+    return ds::Ok(imfd_move(entrys));
 }
 
 bool ImGuiFD::Native::fileExists(const char* path) {
@@ -427,8 +427,10 @@ ds::ErrResult<ds::None> ImGuiFD::Native::makeFolder(const char* path) {
 }
 
 void ImGuiFD::Native::Shutdown() {
+#ifdef _WIN32
     str_buf.clear();
     wstr_buf.clear();
+#endif
 }
 
 // ds::string ImGuiFD::Native::makePathStrOSComply(const char* path) {

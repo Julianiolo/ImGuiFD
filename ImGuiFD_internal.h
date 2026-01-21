@@ -56,6 +56,7 @@ namespace ds {
     constexpr char preffered_separator = '/';
 #endif
 
+#if IMFD_USE_MOVE
 #ifdef IMGUIFD_ENABLE_STL
     template<class T> using remove_reference = typename std::remove_reference<T>;
     using std::forward;
@@ -80,6 +81,10 @@ namespace ds {
     template<class T> struct remove_cv<const volatile T> { typedef T type; };
 #endif
     template<class T> struct remove_cvref { using type = typename remove_cv<typename remove_reference<T>::type>::type; };
+#define imfd_move(_x_) ds::move(_x_)
+#else
+#define imfd_move(_x_) (_x_)
+#endif
 
 
 #ifdef IMGUIFD_ENABLE_STL
@@ -178,11 +183,6 @@ namespace ds {
         inline T&           back()                              { IM_ASSERT(Size > 0); return Data[Size - 1]; }
         inline const T&     back() const                        { IM_ASSERT(Size > 0); return Data[Size - 1]; }
         inline friend void  swap(vector<T>& lhs, vector<T>& rhs){ size_t rhs_size = rhs.Size; rhs.Size = lhs.Size; lhs.Size = rhs_size; size_t rhs_cap = rhs.Capacity; rhs.Capacity = lhs.Capacity; lhs.Capacity = rhs_cap; T* rhs_data = rhs.Data; rhs.Data = lhs.Data; lhs.Data = rhs_data; }
-        inline friend vector<T> move_to_new(vector<T>& v) {
-            vector<T> o;
-            
-            return o;
-        }
 
         inline size_t       _grow_capacity(size_t sz) const     { size_t new_capacity = Capacity ? (Capacity + Capacity / 2) : 8; return new_capacity > sz ? new_capacity : sz; }
         inline void         resize(size_t new_size)             { 
@@ -233,7 +233,7 @@ namespace ds {
             T* new_data = (T*)IMFD_ALLOC((size_t)new_capacity * sizeof(T)); 
             if (Data) { 
                 for(size_t i = 0; i < Size; i++) {
-                    IM_PLACEMENT_NEW(&new_data[i]) T(ds::move(Data[i]));
+                    IM_PLACEMENT_NEW(&new_data[i]) T(imfd_move(Data[i]));
                     Data[i].~T();
                 }
                 IMFD_FREE(Data);
@@ -252,7 +252,7 @@ namespace ds {
         inline void         push_back(T&& v)              { 
             if (Size == Capacity) 
                 reserve(_grow_capacity(Size + 1)); 
-            IM_PLACEMENT_NEW(&Data[Size]) T(move(v)); 
+            IM_PLACEMENT_NEW(&Data[Size]) T(imfd_move(v)); 
             Size++; 
         }
         inline void         pop_back()                          { IM_ASSERT(Size > 0); Size--; }
@@ -262,7 +262,7 @@ namespace ds {
             it->~T(); 
             const ptrdiff_t off = it - Data; 
             for(size_t i = off; i+1 < Size; i++) {
-                Data[i] = ds::move(Data[i+1]);
+                Data[i] = imfd_move(Data[i+1]);
             }
             Size--; 
             return Data + off;
@@ -273,7 +273,7 @@ namespace ds {
             const ptrdiff_t count = it_last - it;
             const ptrdiff_t off = it - Data;
             for(size_t i = off; i+count < Size; i++) {
-                Data[i] = ds::move(Data[i+count]);
+                Data[i] = imfd_move(Data[i+count]);
             }
             Size -= (int)count;
             return Data + off;
@@ -284,7 +284,7 @@ namespace ds {
             if (off < Size) {
                 //memmove(Data + off + 1, Data + off, ((size_t)Size - (size_t)off) * sizeof(T));
                 for(size_t i = off; i+1 < Size; i++) {
-                    Data[i+1] = ds::move(Data[i]);
+                    Data[i+1] = imfd_move(Data[i]);
                 }
             }
         }
@@ -302,7 +302,7 @@ namespace ds {
             const size_t off = it - Data; 
             _move_to_back_one(off);
                  
-            IM_PLACEMENT_NEW(&Data[off]) T(ds::move(v));
+            IM_PLACEMENT_NEW(&Data[off]) T(imfd_move(v));
             Size++;
             return Data + off;
         }
@@ -451,7 +451,7 @@ namespace ds {
                 out.m_data[startSize+i] = s.m_data[i];
             }
             out.m_data[out.m_data.size()-1] = 0;
-            return move(out);
+            return imfd_move(out);
         }
 
         inline bool operator==(const ds::string& s) const noexcept {
@@ -535,7 +535,7 @@ namespace ds {
 
         own_snprintf(out.data(), size_i, str, args ...);
 
-        return move(out);
+        return imfd_move(out);
     }
 
     // find value, if not found return (size_t)-1; compare needs to be a function like object with (const T& a, size_t ind_of_b) -> int
@@ -630,7 +630,7 @@ namespace ds {
 #if IMFD_USE_MOVE
         inline T& insert(ImGuiID id, T&& t) {
             size_t ind = getIndInsert(id);
-            data.insert(data.begin() + ind, { id,move(t) });
+            data.insert(data.begin() + ind, { id,imfd_move(t) });
             return data[ind].second;
         }
 #endif
@@ -643,7 +643,7 @@ namespace ds {
         inline ds::pair<ImGuiID,T> erase_get(ImGuiID id) {
             size_t ind = getIndContains(id);
             IM_ASSERT(ind != (size_t)-1);
-            ds::pair<ImGuiID,T> t = ds::move(data[ind]);
+            ds::pair<ImGuiID,T> t = imfd_move(data[ind]);
             data.erase(data.begin() + ind);
             return t;
         }
@@ -826,7 +826,7 @@ namespace ds {
                 push(*o.arr[(o.start+i) % o.arr.size()]);
             }
         }
-        OverrideStack(OverrideStack&& o) : arr(ds::move(o.arr)), start(o.start), currSize(o.currSize) {
+        OverrideStack(OverrideStack&& o) : arr(imfd_move(o.arr)), start(o.start), currSize(o.currSize) {
             o.currSize = 0;
         }
         ~OverrideStack() {
@@ -844,7 +844,7 @@ namespace ds {
         OverrideStack& operator=(OverrideStack&& o) {
             IM_ASSERT(this != &o);
             clear();
-            arr = move(o.arr);
+            arr = imfd_move(o.arr);
             start = o.start;
             currSize = o.currSize;
             o.currSize = 0;
@@ -882,7 +882,7 @@ namespace ds {
 
                 const size_t slot = (start + currSize) % arr.size();
                 if (out != NULL) {
-                    *out = move(*arr[slot]);
+                    *out = imfd_move(*arr[slot]);
                 }
 
                 arr[slot]->~T();
@@ -957,7 +957,7 @@ namespace ds {
                 }
             }
 
-            arr = move(newVec);
+            arr = imfd_move(newVec);
             start = 0;
         }
     };
@@ -1012,7 +1012,7 @@ namespace ds {
         _ResultErr<ErrT> error_prop() noexcept {
             IM_ASSERT(state == State_Err);
 #if IMFD_USE_MOVE
-            return _ResultErr<ErrT>(move(err));
+            return _ResultErr<ErrT>(imfd_move(err));
 #else
 #ifdef IMGUIFD_ENABLE_STL
             using std::swap;
@@ -1027,11 +1027,11 @@ namespace ds {
 #if IMFD_USE_MOVE
         template<typename OkT_>
         Result(_ResultOk<OkT_> ok_) : state(State_Ok) {
-            IM_PLACEMENT_NEW(&ok) OkT(move(ok_.t));
+            IM_PLACEMENT_NEW(&ok) OkT(imfd_move(ok_.t));
         }
         template<typename ErrT_>
         Result(_ResultErr<ErrT_> err_) : state(State_Err) {
-            IM_PLACEMENT_NEW(&err) ErrT(move(err_.t));
+            IM_PLACEMENT_NEW(&err) ErrT(imfd_move(err_.t));
         }
 #else
         template<typename OkT_>
