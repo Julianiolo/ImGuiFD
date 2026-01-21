@@ -23,13 +23,11 @@ inline size_t imfd_num_free = 0;
 inline void* imfd_alloc(size_t s) {
     imfd_num_alloc++;
     auto p = IM_ALLOC(s);
-    //printf("alloc: %p (%4zu)\n", p, s);
     return p;
 }
 inline void imfd_free(void* p) {
     if(p != NULL) {
         imfd_num_free++;
-        //printf(" free: %p \n", p);
     }
     IM_FREE(p);
 }
@@ -47,7 +45,9 @@ template<typename T> void IMFD_DELETE(T* p) { if (p) { p->~T(); IMFD_FREE(p); } 
 #define IMFD_UNIX_PATHS 1
 #endif
 
-#define IMFD_USE_MOVE 1
+#define IMFD_USE_MOVE (__cplusplus >= 201103L)
+
+
 
 namespace ds {
 #ifdef _WIN32
@@ -110,6 +110,7 @@ namespace ds {
         // Constructors, destructor
         inline vector()                                         { Size = Capacity = 0; Data = NULL; }
         inline vector(const vector<T>& src)                     { Size = Capacity = 0; Data = NULL; operator=(src); }
+#if IMFD_USE_MOVE
         inline vector(vector<T>&& src) noexcept {
             IM_ASSERT(this != &src);
             Size = src.Size; 
@@ -119,6 +120,7 @@ namespace ds {
             src.Size = 0;
             src.Capacity = 0;
         }
+#endif
         inline vector(size_t size_) { 
             Size = Capacity = 0; 
             Data = NULL; 
@@ -139,6 +141,7 @@ namespace ds {
                 IM_PLACEMENT_NEW(&Data[i]) T(src.Data[i]); 
             return *this;
         }
+#if IMFD_USE_MOVE
         inline vector<T>& operator=(vector<T>&& src) noexcept { 
             IM_ASSERT(this != &src);
             clear();
@@ -152,6 +155,7 @@ namespace ds {
 
             return *this;
         }
+#endif
         inline ~vector() {
             clear();
         }

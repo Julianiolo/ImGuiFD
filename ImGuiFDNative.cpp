@@ -9,17 +9,12 @@
     #define WIN32_LEAN_AND_MEAN
     #include <windows.h>
 
-    #include <direct.h> // for _getcwd _fullpath
     #include <wchar.h>  // for _wrename
-
-    #define GETCWD _getcwd
 #else
     #include <dirent.h>
     #include <stdlib.h>
     #include <limits.h>
     #include <errno.h>
-
-    #define GETCWD getcwd
 #endif
 
 #ifdef _WIN32
@@ -134,7 +129,7 @@ static double winFileTimeToUnix(const FILETIME& ft) {
 
 bool ImGuiFD::Native::isAbsolutePath(const char* path) {
     IM_ASSERT(path != NULL);
-#ifdef _WIN32
+#if !IMFD_UNIX_PATHS
     return true;  // TODO
 #else
     return path[0] == '/';
@@ -358,6 +353,7 @@ ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEntrys(cons
 }
 
 bool ImGuiFD::Native::fileExists(const char* path) {
+    IM_ASSERT(path != NULL);
 #ifdef _WIN32
     auto res = toWinPath(path);
     if(res.has_err())
@@ -371,6 +367,7 @@ bool ImGuiFD::Native::fileExists(const char* path) {
 }
 
 bool ImGuiFD::Native::isValidDir(const char* dir) {
+    IM_ASSERT(dir != NULL);
 #ifdef _WIN32
     auto res = toWinPath(dir);
     if(res.has_err())
@@ -385,6 +382,8 @@ bool ImGuiFD::Native::isValidDir(const char* dir) {
 }
 
 ds::ErrResult<ds::None> ImGuiFD::Native::rename(const char* name, const char* newName) {
+    IM_ASSERT(name != NULL);
+    IM_ASSERT(newName != NULL);
 #ifdef _WIN32
     ds::vector<wchar_t> name_w;
     {
@@ -410,6 +409,7 @@ ds::ErrResult<ds::None> ImGuiFD::Native::rename(const char* name, const char* ne
 }
 
 ds::ErrResult<ds::None> ImGuiFD::Native::makeFolder(const char* path) {
+    IM_ASSERT(path != NULL);
 #if defined(_MSC_VER) || defined(__MINGW32__)
     auto res = toWinPath(path);
     if(res.has_err())
@@ -432,18 +432,3 @@ void ImGuiFD::Native::Shutdown() {
     wstr_buf.clear();
 #endif
 }
-
-// ds::string ImGuiFD::Native::makePathStrOSComply(const char* path) {
-// #ifdef _WIN32
-//     // remove root '/'
-//     if(path[0] == '/')
-//         path++;
-//     IM_ASSERT(path[0] != '/');
-
-//     size_t len = strlen(path);
-//     if (len == 2 && path[len-1] == ':') {
-//         return ds::string(path) + "/";
-//     }
-// #endif
-//     return path;
-// }
