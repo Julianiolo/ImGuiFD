@@ -1597,8 +1597,8 @@ namespace ImGuiFD {
                                 if (ImGuiExt::InputTextString("##renameInput", "New Name", &fd->renameStr, ImGuiInputTextFlags_EnterReturnsTrue, { inputWidth,0 })) {
                                     ds::string path = fd->currentPath.toString();
                                     IM_ASSERT(path[path.size() - 1] == '/');
-                                    bool success = Native::rename((path + entry.name).c_str(), (path + fd->renameStr).c_str());
-                                    if (success) {
+                                    auto res = Native::rename((path + entry.name).c_str(), (path + fd->renameStr).c_str());
+                                    if (res.has_value()) {
                                         fd->updateEntrys();
                                     }
                                     else {
@@ -1677,9 +1677,9 @@ namespace ImGuiFD {
             ImGuiExt::InputTextString("EnterNewFolderName", "Enter the name of the new folder", &fd->newFolderNameStr);
 
             if (ImGui::Button("OK")) {
-                bool success = Native::makeFolder((fd->currentPath.toString() + "/" + fd->newFolderNameStr).c_str());
+                auto res = Native::makeFolder((fd->currentPath.toString() + "/" + fd->newFolderNameStr).c_str());
 
-                if(!success) {
+                if(res.has_err()) {
                     // TODO:
                     abort(); // temporary
                 }
@@ -2138,6 +2138,7 @@ void ImGuiFD::DrawDebugWin(const char* dialog_str_id) {
 }
 
 void ImGuiFD::Shutdown() {
+    ImGuiFD::Native::Shutdown();
     for(ds::pair<ImGuiID,FileDialog*>& p : openDialogs) {
         IMFD_DELETE(p.second);
     }

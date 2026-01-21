@@ -967,7 +967,6 @@ namespace ds {
         }
     };
 
-
     template<typename T>
     struct _ResultOk {
         T t;
@@ -984,6 +983,8 @@ namespace ds {
         explicit _ResultErr(U&& v) : t(ds::forward<U>(v)) {}
 #endif
     };
+
+    struct None {};
     
     template<typename OkT, typename ErrT>
     class Result {
@@ -994,7 +995,6 @@ namespace ds {
         bool has_err() const noexcept {
             return state == State_Err;
         }
-        
 
         OkT& value() noexcept {
             IM_ASSERT(state == State_Ok);
@@ -1100,6 +1100,9 @@ namespace ds {
     };
 
 #if IMFD_USE_MOVE
+    inline _ResultOk<None> Ok() {
+        return _ResultOk<None>(None());
+    }
     template <typename T>
     _ResultOk<typename remove_cvref<T>::type> Ok(T&& t) {
         return _ResultOk<typename remove_cvref<T>::type>(ds::forward<T>(t));
@@ -1172,8 +1175,10 @@ namespace ImGuiFD {
         // the DirEntrys will have their dir member be set to the here given dir pointer (no string copy)
         ds::ErrResult<ds::vector<DirEntry>> loadDirEntrys(const char* dir);
 
-        bool rename(const char* name, const char* newName);
-        bool makeFolder(const char* path);
+        ds::ErrResult<ds::None> rename(const char* name, const char* newName);
+        ds::ErrResult<ds::None> makeFolder(const char* path);
+
+        void Shutdown();
     }
 }
 
