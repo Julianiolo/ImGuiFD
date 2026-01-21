@@ -136,7 +136,7 @@ bool ImGuiFD::Native::isAbsolutePath(const char* path) {
 #endif
 }
 
-ds::ErrResult<ds::string> ImGuiFD::Native::getAbsolutePath(const char* path_) {
+ds::Result<ds::string, ds::string> ImGuiFD::Native::getAbsolutePath(const char* path_) {
     if (path_[0] == '/' && path_[0] == 0)  // path_ == "/"
         return ds::Ok<ds::string>("/");
 
@@ -236,7 +236,7 @@ static int cmpEntrys(const void* a_, const void* b_) {
 }
 
 
-ds::ErrResult<ds::vector<ImGuiFD::DirEntry>> ImGuiFD::Native::loadDirEntrys(const char* dir) {
+ds::Result<ds::vector<ImGuiFD::DirEntry>, ds::string> ImGuiFD::Native::loadDirEntrys(const char* dir) {
     ds::vector<DirEntry> entrys;
 
     auto hash = ImHashStr(dir);
@@ -381,7 +381,7 @@ bool ImGuiFD::Native::isValidDir(const char* dir) {
 #endif
 }
 
-ds::ErrResult<ds::None> ImGuiFD::Native::rename(const char* name, const char* newName) {
+ds::Result<ds::None, ds::string> ImGuiFD::Native::rename(const char* name, const char* newName) {
     IM_ASSERT(name != NULL);
     IM_ASSERT(newName != NULL);
 #ifdef _WIN32
@@ -408,7 +408,7 @@ ds::ErrResult<ds::None> ImGuiFD::Native::rename(const char* name, const char* ne
     return ds::Ok();
 }
 
-ds::ErrResult<ds::None> ImGuiFD::Native::makeFolder(const char* path) {
+ds::Result<ds::None, ds::string> ImGuiFD::Native::makeFolder(const char* path) {
     IM_ASSERT(path != NULL);
 #if defined(_MSC_VER) || defined(__MINGW32__)
     auto res = toWinPath(path);

@@ -20,14 +20,14 @@ size_t imfd_num_free = 0;
 
 namespace ImGuiFD {
     namespace utils {
-        const char* findCharInStrFromBack(char c, const char* str, const char* strEnd = nullptr) {
-            if (strEnd == nullptr)
+        const char* findCharInStrFromBack(char c, const char* str, const char* strEnd = NULL) {
+            if (strEnd == NULL)
                 strEnd = str + strlen(str);
             for (const char* ptr = strEnd-1; ptr >= str; ptr--) {
                 if (*ptr == c)
                     return ptr;
             }
-            return nullptr;
+            return NULL;
         }
         const char* getFileName(const char* path, const char* path_end = 0) {
             if (path_end == 0)
@@ -42,7 +42,7 @@ namespace ImGuiFD {
             if (lastSlash == NULL && lastBSlash == NULL)
                 return path;
 
-            const char* lastDiv = ImMax(lastSlash != nullptr ? lastSlash : 0, lastBSlash != nullptr ? lastBSlash : 0);
+            const char* lastDiv = ImMax(lastSlash != NULL ? lastSlash : 0, lastBSlash != NULL ? lastBSlash : 0);
 
             return lastDiv + 1;
         }
@@ -113,11 +113,11 @@ namespace ImGuiFD {
 
             return out;
         }
-        ds::vector<ds::pair<ds::string, ds::string>> splitInput(const char* str, const char* dir) {
+        ds::vector< ds::pair<ds::string, ds::string> > splitInput(const char* str, const char* dir) {
             size_t len = strlen(str);
             ds::string dirStr = dir;
 
-            ds::vector<ds::pair<ds::string, ds::string>> out;
+            ds::vector< ds::pair<ds::string, ds::string> > out;
             bool insideQuote = false;
 
             size_t i = 0;
@@ -149,7 +149,7 @@ namespace ImGuiFD {
                     path = dirStr + path;
                 }
                 //path = Native::makePathStrOSComply(path.c_str());
-                out.push_back({ getFileName(path.c_str()),path});
+                out.push_back(ds::pair<ds::string, ds::string>(getFileName(path.c_str()), path));
             }
 
             return out;
@@ -167,7 +167,7 @@ namespace ImGuiFD {
             }
             return 0;
         }
-        static bool InputTextString(const char* label, const char* hint, ds::string* str, ImGuiInputTextFlags flags = 0, const ImVec2& size = { 0,0 }) {
+        static bool InputTextString(const char* label, const char* hint, ds::string* str, ImGuiInputTextFlags flags = 0, const ImVec2& size = ImVec2(0,0)) {
             return ImGui::InputTextEx(
                 label, hint, str->data(), (int)str->size()+1, 
                 size, flags | ImGuiInputTextFlags_CallbackResize, TextCallBack, str
@@ -233,7 +233,7 @@ namespace ImGuiFD {
 
             return ImRect(minPos, maxPos);
         }
-        static bool ComboHorizontal(const char* str_id, size_t* v, const char** labels, size_t labelCnt, const ImVec2& size_arg = { 0,0 }) {
+        static bool ComboHorizontal(const char* str_id, size_t* v, const char** labels, size_t labelCnt, const ImVec2& size_arg = ImVec2(0,0)) {
             ImGui::PushID(str_id);
 
             ImVec2 avail = ImGui::GetContentRegionAvail();
@@ -461,7 +461,7 @@ namespace ImGuiFD {
                 SubFilter(ds::string cmd) {
                     {
                         const char* colPos = strchr(cmd.c_str(), ':');
-                        if (colPos != nullptr) {
+                        if (colPos != NULL) {
                             name = cmd.substr(0, colPos - cmd.c_str());
                             cmd = cmd.substr(colPos - cmd.c_str() + 1, cmd.size());
                         }
@@ -706,20 +706,20 @@ namespace ImGuiFD {
             // return true if it was able to load the directory
             bool update(const char* dir_) {
                 char* new_dir = ImStrdup(dir_);
-                auto res = Native::loadDirEntrys(new_dir);
+                ds::Result<ds::vector<DirEntry>, ds::string> res = Native::loadDirEntrys(new_dir);
                 if(res.has_err()) {
                     IMFD_FREE(new_dir);
                     return false;
                 }
                 
-                setEntrysTo(new_dir, move(res.value()));
+                setEntrysTo(new_dir, imfd_move(res.value()));
                 return true;
             }
 
             void setEntrysTo(char* new_dir, ds::vector<DirEntry>&& src) {
                 IMFD_FREE(dir);
                 dir = new_dir;
-                data = move(src);
+                data = imfd_move(src);
                 updateFiltering();
             }
 
@@ -798,7 +798,7 @@ namespace ImGuiFD {
         bool toDelete = false;
         bool showLoadErrorMsg = false;
 
-        ds::vector<ds::pair<ds::string,ds::string>> inputStrs;
+        ds::vector< ds::pair<ds::string,ds::string> > inputStrs;
 
         FileDialog(ImGuiID id, const char* str_id, const char* filter, const char* path, ImGuiFDMode mode, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1) : 
             str_id(str_id), id(id), path(utils::fixDirStr(Native::getAbsolutePath(path).value().c_str())),  // TODO error handling
@@ -873,7 +873,7 @@ namespace ImGuiFD {
 
             inputText = "\"";
             for (size_t i = 0; i < selected.size(); i++) {
-                auto& entry = entrys.getRaw(selected[i]);
+                DirEntry& entry = entrys.getRaw(selected[i]);
                 if(entry.isFolder != searchingForFoldersNotFiles)
                     continue;
 
@@ -1453,7 +1453,7 @@ namespace ImGuiFD {
         if (numOfItems % itemsPerLineRaw != 0 && numOfLines > 0)
             numOfLines++;
 
-        if (ImGui::BeginChild("IconTable", { 0,height }, true)) {
+        if (ImGui::BeginChild("IconTable", ImVec2(0,height), true)) {
             ImGui::SetCursorPos(ImGui::GetCursorPos() + padding);
             ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, padding);
             ImGuiStyle& style = ImGui::GetStyle();
@@ -1463,8 +1463,8 @@ namespace ImGuiFD {
                 ImVec2 msgSize = ImGui::CalcTextSize(msg);
                 ImVec2 crsr = ImGui::GetCursorPos();
                 ImGui::SetCursorPos(
-                    ImVec2 { ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x / 2 - msgSize.x / 2,
-                    ImGui::GetCursorPosY() + height / 10 - msgSize.y / 2 }
+                    ImVec2(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x / 2 - msgSize.x / 2,
+                    ImGui::GetCursorPosY() + height / 10 - msgSize.y / 2)
                 );
                 ImGui::TextUnformatted(msg);
                 ImGui::SetCursorPos(crsr);
@@ -1487,13 +1487,13 @@ namespace ImGuiFD {
 
                         ImGui::PushID((ImGuiID)ind);
 
-                        auto& entry = fd->entrys.getRaw(id);
+                        DirEntry& entry = fd->entrys.getRaw(id);
                         const bool isSel = fd->selected.contains(id);
 
-                        ImVec2 cursorStart = totalCursorStart + ImVec2{(itemWidth+style.ItemSpacing.x*2)*col, (itemHeight+style.ItemSpacing.y*2)*row};
-                        ImVec2 cursorEnd = cursorStart + ImVec2{itemWidth, itemHeight};
+                        ImVec2 cursorStart = totalCursorStart + ImVec2((itemWidth+style.ItemSpacing.x*2)*col, (itemHeight+style.ItemSpacing.y*2)*row);
+                        ImVec2 cursorEnd = cursorStart + ImVec2(itemWidth, itemHeight);
                         ImGui::SetCursorPos(cursorStart);
-                        ImGui::Selectable("", isSel, 0, { itemWidth, itemHeight });
+                        ImGui::Selectable("", isSel, 0, ImVec2(itemWidth, itemHeight));
                         if (ImGui::IsItemClicked() || ImGui::IsItemClicked(ImGuiMouseButton_Right)) { // directly using return value of Selectable doesnt work when going into folder (instantly selects hovered item) => ImGui bug?
                             ClickedOnEntrySelect(id, isSel, entry.isFolder);
                         }
@@ -1524,7 +1524,7 @@ namespace ImGuiFD {
                                 
                                 
                                 ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x/2 - img_width/2); // center image vertically
-                                ImGui::Image(fileData->thumbnail->texID, { img_width, img_height });
+                                ImGui::Image(fileData->thumbnail->texID, ImVec2(img_width, img_height));
                                 ImGui::TextUnformatted(entry.name ? entry.name : "?");
 
                                 ImGui::Separator();
@@ -1547,8 +1547,8 @@ namespace ImGuiFD {
                                 imgWidth = itemWidth;
                                 imgHeight = ((float)fileData->thumbnail->height / (float)fileData->thumbnail->width) * imgWidth;
                             }
-                            ImGui::SetCursorPos(ImVec2{ cursorStart.x + itemWidth / 2 - imgWidth / 2, cursorStart.y + imgHeightMax/2 - imgHeight/2 });
-                            ImGui::Image(fileData->thumbnail->texID, ImVec2{ imgWidth, imgHeight });
+                            ImGui::SetCursorPos(ImVec2(cursorStart.x + itemWidth / 2 - imgWidth / 2, cursorStart.y + imgHeightMax/2 - imgHeight/2));
+                            ImGui::Image(fileData->thumbnail->texID, ImVec2(imgWidth, imgHeight));
                         }
                         else {
                             // Tooltip
@@ -1581,7 +1581,7 @@ namespace ImGuiFD {
                             }
                             
                             ImVec2 textSize = ImGui::CalcTextSize(iconText);
-                            ImGui::SetCursorPos(ImVec2{ cursorStart.x + itemWidth / 2 - textSize.x / 2, cursorStart.y + (textY-cursorStart.y)/2-textSize.y/2 });
+                            ImGui::SetCursorPos(ImVec2(cursorStart.x + itemWidth / 2 - textSize.x / 2, cursorStart.y + (textY-cursorStart.y)/2-textSize.y/2));
                             ImGui::TextColored(settings.iconTextCol, "%s", iconText);
                         }
 
@@ -1598,10 +1598,10 @@ namespace ImGuiFD {
                                 const float inputWidth = textWidth < 70 ? 70 : textWidth;
                                 ImGui::SetCursorPosX(ImGui::GetCursorPosX() + maxWidth / 2 - inputWidth / 2);
                                 ImGui::SetKeyboardFocusHere();
-                                if (ImGuiExt::InputTextString("##renameInput", "New Name", &fd->renameStr, ImGuiInputTextFlags_EnterReturnsTrue, { inputWidth,0 })) {
+                                if (ImGuiExt::InputTextString("##renameInput", "New Name", &fd->renameStr, ImGuiInputTextFlags_EnterReturnsTrue, ImVec2(inputWidth,0))) {
                                     ds::string path = fd->currentPath.toString();
                                     IM_ASSERT(path[path.size() - 1] == '/');
-                                    auto res = Native::rename((path + entry.name).c_str(), (path + fd->renameStr).c_str());
+                                    ds::Result<ds::None, ds::string> res = Native::rename((path + entry.name).c_str(), (path + fd->renameStr).c_str());
                                     if (res.has_value()) {
                                         fd->updateEntrys();
                                     }
@@ -1639,7 +1639,7 @@ namespace ImGuiFD {
         bool openNewFolderPopup = false;
         if (ImGui::BeginPopup("ContextMenu")) {
             if (fd->selected.size() == 1) {
-                auto& entry = fd->getSelectedInd(0);
+                DirEntry& entry = fd->getSelectedInd(0);
                 bool canRename = entry.error == NULL;
                 ImGui::BeginDisabled(!canRename);
                 if (ImGui::MenuItem("Rename")) {
@@ -1681,7 +1681,7 @@ namespace ImGuiFD {
             ImGuiExt::InputTextString("EnterNewFolderName", "Enter the name of the new folder", &fd->newFolderNameStr);
 
             if (ImGui::Button("OK")) {
-                auto res = Native::makeFolder((fd->currentPath.toString() + "/" + fd->newFolderNameStr).c_str());
+                ds::Result<ds::None, ds::string> res = Native::makeFolder((fd->currentPath.toString() + "/" + fd->newFolderNameStr).c_str());
 
                 if(res.has_err()) {
                     // TODO:
@@ -1722,7 +1722,7 @@ namespace ImGuiFD {
     static bool canOpenNow() {
         if (fd->isFileMode()) {
             for (size_t i = 0; i < fd->selected.size(); i++) {
-                auto& entry = fd->getSelectedInd(i);
+                DirEntry& entry = fd->getSelectedInd(i);
                 if (entry.isFolder)
                     return false;
             }
@@ -1749,7 +1749,7 @@ namespace ImGuiFD {
 
         ImGui::PushItemWidth(-FLT_MIN);
         // file name text input
-        ImGuiExt::InputTextString("##Name", "File Name", &fd->inputText, 0, { ImVec2{ fd->hasFilter ? 0 : widthWOBtns, 0 } });
+        ImGuiExt::InputTextString("##Name", "File Name", &fd->inputText, 0, ImVec2(fd->hasFilter ? 0 : widthWOBtns, 0));
 
         // filter combo
         if (fd->hasFilter) {
@@ -1789,7 +1789,7 @@ namespace ImGuiFD {
             bool drawOpen = true;
             if (!canOpen && fd->isFileMode() && fd->selected.size() == 1 && fd->getSelectedInd(0).isFolder) {
                 drawOpen = false;
-                if (ImGui::Button("Open Folder", {btnWidht,0})) {
+                if (ImGui::Button("Open Folder", ImVec2(btnWidht,0))) {
                     fd->dirMoveDownInto(fd->entrys.get(*fd->selected.begin()).name);
                 }
             }
@@ -1797,7 +1797,7 @@ namespace ImGuiFD {
             if (!canOpen) ImGui::BeginDisabled();
             if (drawOpen) {
                 // Open Button
-                if (ImGui::Button(openBtnStr, { btnWidht,0 })) {
+                if (ImGui::Button(openBtnStr, ImVec2(btnWidht,0))) {
                     bool done = true;
 
                     if (fd->mode == ImGuiFDMode_SaveFile) {
@@ -1818,14 +1818,14 @@ namespace ImGuiFD {
 
         ImGui::SameLine();
         // Close Button
-        if(ImGui::Button(cancelBtnStr, { btnWidht,0 })) {
+        if(ImGui::Button(cancelBtnStr, ImVec2(btnWidht,0))) {
             fd->actionDone = true;
             fd->selectionMade = false;
         }
         ImGui::PopItemWidth();
 
         
-        ImGui::SetNextWindowPos(ImGui::GetWindowPos() + ImGui::GetWindowSize() / 2, ImGuiCond_Appearing, {0.5f,0.5f});
+        ImGui::SetNextWindowPos(ImGui::GetWindowPos() + ImGui::GetWindowSize() / 2, ImGuiCond_Appearing, ImVec2(0.5f,0.5f));
         if (ImGui::BeginPopup("Override File?")) {
             ImGui::TextUnformatted("This file already Exists!");
             ImGui::Separator();
@@ -2141,7 +2141,8 @@ void ImGuiFD::DrawDebugWin(const char* dialog_str_id) {
 
 void ImGuiFD::Shutdown() {
     ImGuiFD::Native::Shutdown();
-    for(ds::pair<ImGuiID,FileDialog*>& p : openDialogs) {
+    for(ds::pair<ImGuiID,FileDialog*>* it = openDialogs.begin(); it < openDialogs.end(); it++) {
+        ds::pair<ImGuiID,FileDialog*>& p = *it;
         IMFD_DELETE(p.second);
     }
     openDialogs.clear(); // this is crucial to call all the deconstructors before the stuff they depend on gets shut down

@@ -22,7 +22,7 @@ extern size_t imfd_num_free;
 
 inline void* imfd_alloc(size_t s) {
     imfd_num_alloc++;
-    auto p = IM_ALLOC(s);
+    void* p = IM_ALLOC(s);
     return p;
 }
 inline void imfd_free(void* p) {
@@ -38,6 +38,12 @@ inline void imfd_free(void* p) {
 template<typename T> void IMFD_DELETE(T* p) { if (p) { p->~T(); IMFD_FREE(p); } }
 
 #define IMFD_ASSERT_PARANOID(_x_) IM_ASSERT(_x_)
+
+#if __cplusplus >= 201103L
+#define IMFD_NOEXCEPT noexcept
+#else
+#define IMFD_NOEXCEPT
+#endif
 
 #ifdef _WIN32
 #define IMFD_UNIX_PATHS 0
@@ -65,13 +71,13 @@ namespace ds {
     template<class T> struct remove_reference<T&&> { typedef T type; };
 
     template<typename T>
-    typename remove_reference<T>::type&& move(T&& t) noexcept {
+    typename remove_reference<T>::type&& move(T&& t) IMFD_NOEXCEPT {
         return static_cast<typename remove_reference<T>::type&&>(t);
     }
 
     // https://stackoverflow.com/a/27501467
-    template<typename T> T&& forward(typename remove_reference<T>::type& param) noexcept { return static_cast<T&&>(param); }
-    template<typename T> T&& forward(typename remove_reference<T>::type&& param) noexcept { return static_cast<T&&>(param); }
+    template<typename T> T&& forward(typename remove_reference<T>::type& param) IMFD_NOEXCEPT { return static_cast<T&&>(param); }
+    template<typename T> T&& forward(typename remove_reference<T>::type&& param) IMFD_NOEXCEPT { return static_cast<T&&>(param); }
     template<class T> struct remove_cv { typedef T type; };
     template<class T> struct remove_cv<const T> { typedef T type; };
     template<class T> struct remove_cv<volatile T> { typedef T type; };
@@ -108,7 +114,7 @@ namespace ds {
         inline vector()                                         { Size = Capacity = 0; Data = NULL; }
         inline vector(const vector<T>& src)                     { Size = Capacity = 0; Data = NULL; operator=(src); }
 #if IMFD_USE_MOVE
-        inline vector(vector<T>&& src) noexcept {
+        inline vector(vector<T>&& src) IMFD_NOEXCEPT {
             IM_ASSERT(this != &src);
             Size = src.Size; 
             Capacity = src.Capacity;
@@ -139,7 +145,7 @@ namespace ds {
             return *this;
         }
 #if IMFD_USE_MOVE
-        inline vector<T>& operator=(vector<T>&& src) noexcept { 
+        inline vector<T>& operator=(vector<T>&& src) IMFD_NOEXCEPT { 
             IM_ASSERT(this != &src);
             clear();
 
@@ -250,12 +256,14 @@ namespace ds {
             IM_PLACEMENT_NEW(&Data[Size]) T(v); 
             Size++; 
         }
+#if IMFD_USE_MOVE
         inline void         push_back(T&& v)              { 
             if (Size == Capacity) 
                 reserve(_grow_capacity(Size + 1)); 
             IM_PLACEMENT_NEW(&Data[Size]) T(imfd_move(v)); 
             Size++; 
         }
+#endif
         inline void         pop_back()                          { IM_ASSERT(Size > 0); Size--; }
         inline void         push_front(const T& v)              { if (Size == 0) push_back(v); else insert(Data, v); }
         inline T*           erase(const T* it)                  { 
@@ -298,6 +306,7 @@ namespace ds {
             Size++;
             return Data + off;
         }
+#if IMFD_USE_MOVE
         inline T*           insert(const T* it, T&& v)     { 
             IM_ASSERT(it >= Data && it <= Data + Size); 
             const size_t off = it - Data; 
@@ -307,6 +316,7 @@ namespace ds {
             Size++;
             return Data + off;
         }
+#endif
         //inline bool         contains(const T& v) const          { const T* data = Data;  const T* data_end = Data + Size; while (data < data_end) if (*data++ == v) return true; return false; }
         inline T*           find(const T& v)                    { T* data = Data;  const T* data_end = Data + Size; while (data < data_end) if (*data == v) break; else ++data; return data; }
         inline const T*     find(const T& v) const              { const T* data = Data;  const T* data_end = Data + Size; while (data < data_end) if (*data == v) break; else ++data; return data; }
@@ -339,7 +349,7 @@ namespace ds {
             
         }
         inline string(const string&) = default;
-        inline string(string&&) noexcept = default;
+
         inline string(const char* s, const char* s_end = 0) {
             size_t len = s_end ? (s_end-s) : strlen(s);
             if(len > 0) {
@@ -351,18 +361,21 @@ namespace ds {
             }
         }
         string& operator=(const string&) = default;
-        string& operator=(string&&) noexcept = default;
-        inline friend void swap(string& a, string& b) noexcept {
+#if IMFD_USE_MOVE
+        inline string(string&&) IMFD_NOEXCEPT = default;
+        string& operator=(string&&) IMFD_NOEXCEPT = default;
+#endif
+        inline friend void swap(string& a, string& b) IMFD_NOEXCEPT {
             swap(a.m_data, b.m_data);
-            auto as = a.single_char;
+            char as = a.single_char;
             a.single_char = b.single_char;
             b.single_char = as;
         }
 
-        inline char* data() noexcept {
+        inline char* data() IMFD_NOEXCEPT {
             return m_data.size() == 0 ? &single_char : &m_data[0];
         }
-        inline const char* c_str() const noexcept {
+        inline const char* c_str() const IMFD_NOEXCEPT {
             return m_data.size() == 0 ? &single_char : &m_data[0];
         }
 
@@ -374,10 +387,10 @@ namespace ds {
         }
 
         // this size does not include the null termination
-        inline size_t size() const noexcept {
+        inline size_t size() const IMFD_NOEXCEPT {
             return m_data.size() > 0 ? (m_data.size()-1) : 0;
         }
-        inline size_t capacity() const noexcept {
+        inline size_t capacity() const IMFD_NOEXCEPT {
             return m_data.capacity();
         }
 
@@ -391,18 +404,18 @@ namespace ds {
         }
 
 
-        inline char& operator[](size_t off) noexcept {
+        inline char& operator[](size_t off) IMFD_NOEXCEPT {
             IM_ASSERT(off < m_data.size());
             return m_data[off];
         }
-        inline const char& operator[](size_t off) const noexcept {
+        inline const char& operator[](size_t off) const IMFD_NOEXCEPT {
             IM_ASSERT(off < m_data.size());
             return m_data[off];
         }
-        inline const char* begin() const noexcept {
+        inline const char* begin() const IMFD_NOEXCEPT {
             return m_data.size() == 0 ? &single_char : m_data.begin();
         }
-        inline const char* end() const noexcept {
+        inline const char* end() const IMFD_NOEXCEPT {
             return m_data.size() == 0 ? &single_char+1 : m_data.end()-1;
         }
 
@@ -455,17 +468,17 @@ namespace ds {
             return imfd_move(out);
         }
 
-        inline bool operator==(const ds::string& s) const noexcept {
+        inline bool operator==(const ds::string& s) const IMFD_NOEXCEPT {
             return strcmp(c_str(), s.c_str()) == 0;
         }
-        inline bool operator==(const char* s) const noexcept {
+        inline bool operator==(const char* s) const IMFD_NOEXCEPT {
             return strcmp(c_str(), s) == 0;
         }
 
-        inline bool operator!=(const ds::string& s) const noexcept {
+        inline bool operator!=(const ds::string& s) const IMFD_NOEXCEPT {
             return !(*this == s);
         }
-        inline bool operator!=(const char* s) const noexcept {
+        inline bool operator!=(const char* s) const IMFD_NOEXCEPT {
             return !(*this == s);
         }
     };
@@ -541,7 +554,7 @@ namespace ds {
 
     // find value, if not found return (size_t)-1; compare needs to be a function like object with (const T& a, size_t ind_of_b) -> int
     template<typename T,typename CMP>
-    inline size_t binarySearchExclusive(size_t len, const T& value, const CMP& compare) noexcept {
+    inline size_t binarySearchExclusive(size_t len, const T& value, const CMP& compare) IMFD_NOEXCEPT {
         if (len == 0)
             return (size_t)-1;
 
@@ -568,7 +581,7 @@ namespace ds {
 
     // find value, if not found return where to insert it; compare needs to be a function like object with (const T& a, size_t ind_of_b) -> int
     template<typename T,typename CMP>
-    inline size_t binarySearchInclusive(size_t len, const T& value, const CMP& compare) noexcept {
+    inline size_t binarySearchInclusive(size_t len, const T& value, const CMP& compare) IMFD_NOEXCEPT {
         if (len == 0)
             return 0;
 
@@ -593,10 +606,12 @@ namespace ds {
     template<typename T>
     class map {
     private:
-        vector<pair<ImGuiID, T>> data;
+        typedef pair<ImGuiID, T> pair_type;
+        vector<pair_type> data;
 
         struct Comparer {
             const map<T>& the_map;
+            Comparer(const map<T>& the_map) : the_map(the_map) {}
             int operator()(ImGuiID v, size_t ind) const {
                 ImGuiID o = the_map.data[ind].first;
                 if (v == o) return 0;
@@ -605,10 +620,10 @@ namespace ds {
         };
 
         inline size_t getIndContains(const ImGuiID val) const {
-            return binarySearchExclusive(data.size(), val, Comparer{ *this });
+            return binarySearchExclusive(data.size(), val, Comparer(*this));
         }
         inline size_t getIndInsert(const ImGuiID val) const {
-            return binarySearchInclusive(data.size(), val, Comparer{ *this });
+            return binarySearchInclusive(data.size(), val, Comparer(*this));
         }
     public:
 
@@ -625,13 +640,13 @@ namespace ds {
 
         inline T& insert(ImGuiID id, const T& t) {
             size_t ind = getIndInsert(id);
-            data.insert(data.begin() + ind, { id,t });
+            data.insert(data.begin() + ind, pair_type(id,t));
             return data[ind].second;
         }
 #if IMFD_USE_MOVE
         inline T& insert(ImGuiID id, T&& t) {
             size_t ind = getIndInsert(id);
-            data.insert(data.begin() + ind, { id,imfd_move(t) });
+            data.insert(data.begin() + ind, pair_type(id,imfd_move(t)));
             return data[ind].second;
         }
 #endif
@@ -668,12 +683,13 @@ namespace ds {
     template<typename T>
     class set {
     private:
-        using container = vector<T>;
+        typedef vector<T> container;
         container data;
-        using iterator = typename container::iterator;
+        typedef typename container::iterator iterator;
 
         struct Comparer {
             const set<T>& the_set;
+            Comparer(const set<T>& the_set) : the_set(the_set) {}
             int operator()(const T& v, size_t ind) const {
                 const T& o = the_set.data[ind];
                 if (v == o) return 0;
@@ -682,10 +698,10 @@ namespace ds {
         };
 
         inline size_t getIndContains(const T& val) const {
-            return binarySearchExclusive(data.size(), val, Comparer{ *this });
+            return binarySearchExclusive(data.size(), val, Comparer(*this));
         }
         inline size_t getIndInsert(const T& val) const {
-            return binarySearchInclusive(data.size(), val, Comparer{ *this });
+            return binarySearchInclusive(data.size(), val, Comparer(*this));
         }
     public:
 
@@ -827,12 +843,6 @@ namespace ds {
                 push(*o.arr[(o.start+i) % o.arr.size()]);
             }
         }
-        OverrideStack(OverrideStack&& o) : arr(imfd_move(o.arr)), start(o.start), currSize(o.currSize) {
-            o.currSize = 0;
-        }
-        ~OverrideStack() {
-            clear();
-        }
         OverrideStack& operator=(const OverrideStack& o) {
             clear();
             arr.resize(o.arr.size(), NULL);
@@ -841,6 +851,10 @@ namespace ds {
             }
             IMFD_ASSERT_PARANOID(currSize == o.currSize);
             return *this;
+        }
+#if IMFD_USE_MOVE
+        OverrideStack(OverrideStack&& o) : arr(imfd_move(o.arr)), start(o.start), currSize(o.currSize) {
+            o.currSize = 0;
         }
         OverrideStack& operator=(OverrideStack&& o) {
             IM_ASSERT(this != &o);
@@ -851,6 +865,11 @@ namespace ds {
             o.currSize = 0;
             return *this;
         }
+#endif
+        ~OverrideStack() {
+            clear();
+        }
+        
 
         void push(const T& t) {
             const size_t nextSlot = (start + currSize) % arr.size();
@@ -920,10 +939,10 @@ namespace ds {
         void clear() {
             for (size_t i = 0; i < currSize; i++) {
                 size_t ind = (start+i) % arr.size();
-                IM_ASSERT_PARANOID(arr[ind] != nullptr)
+                IM_ASSERT_PARANOID(arr[ind] != NULL)
                 arr[ind]->~T();
                 IMFD_FREE(arr[ind]);
-                arr[ind] = nullptr;
+                arr[ind] = NULL;
             }
 
             start = 0;
@@ -941,7 +960,7 @@ namespace ds {
             if (newSize == arr.size())
                 return;
 
-            ds::vector<T*> newVec(newSize, nullptr);
+            ds::vector<T*> newVec(newSize, NULL);
 
             if (newSize > arr.size()) {
                 for (size_t i = 0; i < currSize; i++) {
@@ -969,6 +988,8 @@ namespace ds {
 #if IMFD_USE_MOVE
         template<typename U>
         explicit _ResultOk(U&& v) : t(ds::forward<U>(v)) {}
+#else
+        explicit _ResultOk(T t) : t(t) {}
 #endif
     };
     template<typename T>
@@ -977,6 +998,8 @@ namespace ds {
 #if IMFD_USE_MOVE
         template<typename U>
         explicit _ResultErr(U&& v) : t(ds::forward<U>(v)) {}
+#else
+        explicit _ResultErr(T t) : t(t) {}
 #endif
     };
 
@@ -985,32 +1008,32 @@ namespace ds {
     template<typename OkT, typename ErrT>
     class Result {
     public:
-        bool has_value() const noexcept {
+        bool has_value() const IMFD_NOEXCEPT {
             return state == State_Ok;
         }
-        bool has_err() const noexcept {
+        bool has_err() const IMFD_NOEXCEPT {
             return state == State_Err;
         }
 
-        OkT& value() noexcept {
+        OkT& value() IMFD_NOEXCEPT {
             IM_ASSERT(state == State_Ok);
             return ok;
         }
-        const OkT& value() const noexcept {
+        const OkT& value() const IMFD_NOEXCEPT {
             IM_ASSERT(state == State_Ok);
             return ok;
         }
 
 
-        ErrT& error() noexcept {
+        ErrT& error() IMFD_NOEXCEPT {
             IM_ASSERT(state == State_Err);
             return err;
         }
-        const ErrT& error() const noexcept {
+        const ErrT& error() const IMFD_NOEXCEPT {
             IM_ASSERT(state == State_Err);
             return err;
         }
-        _ResultErr<ErrT> error_prop() noexcept {
+        _ResultErr<ErrT> error_prop() IMFD_NOEXCEPT {
             IM_ASSERT(state == State_Err);
 #if IMFD_USE_MOVE
             return _ResultErr<ErrT>(imfd_move(err));
@@ -1118,8 +1141,6 @@ namespace ds {
     }
 #endif
 
-    template<typename T>
-    using ErrResult = ds::Result<T, ds::string>;
 }
 
 #define IMGUIFD_RETURN_IF_ERR(expr) \
@@ -1161,15 +1182,15 @@ namespace ImGuiFD {
 
     namespace Native {
         bool isAbsolutePath(const char* path);
-        ds::ErrResult<ds::string> getAbsolutePath(const char* path);
+        ds::Result<ds::string, ds::string> getAbsolutePath(const char* path);
         bool isValidDir(const char* dir);
         bool fileExists(const char* path);
 
         // the DirEntrys will have their dir member be set to the here given dir pointer (no string copy)
-        ds::ErrResult<ds::vector<DirEntry>> loadDirEntrys(const char* dir);
+        ds::Result<ds::vector<DirEntry>, ds::string> loadDirEntrys(const char* dir);
 
-        ds::ErrResult<ds::None> rename(const char* name, const char* newName);
-        ds::ErrResult<ds::None> makeFolder(const char* path);
+        ds::Result<ds::None, ds::string> rename(const char* name, const char* newName);
+        ds::Result<ds::None, ds::string> makeFolder(const char* path);
 
         void Shutdown();
     }
