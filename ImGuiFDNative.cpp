@@ -239,7 +239,7 @@ static int cmpEntrys(const void* a_, const void* b_) {
 ds::Result<ds::vector<ImGuiFD::DirEntry>, ds::string> ImGuiFD::Native::loadDirEntrys(const char* dir) {
     ds::vector<DirEntry> entrys;
 
-    auto hash = ImHashStr(dir);
+    ImGuiID hash = ImHashStr(dir);
 
 #ifdef _WIN32
     if (strcmp(dir, "") == 0) {

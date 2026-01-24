@@ -41,8 +41,10 @@ template<typename T> void IMFD_DELETE(T* p) { if (p) { p->~T(); IMFD_FREE(p); } 
 
 #if __cplusplus >= 201103L
 #define IMFD_NOEXCEPT noexcept
+#define IMFD_CONSTEXPR constexpr
 #else
 #define IMFD_NOEXCEPT
+#define IMFD_CONSTEXPR const
 #endif
 
 #ifdef _WIN32
@@ -51,12 +53,11 @@ template<typename T> void IMFD_DELETE(T* p) { if (p) { p->~T(); IMFD_FREE(p); } 
 #define IMFD_UNIX_PATHS 1
 #endif
 
-
 namespace ds {
 #ifdef _WIN32
-    constexpr char preffered_separator = '\\';
+    IMFD_CONSTEXPR char preffered_separator = '\\';
 #else
-    constexpr char preffered_separator = '/';
+    IMFD_CONSTEXPR char preffered_separator = '/';
 #endif
 
 #if IMFD_USE_MOVE
@@ -342,15 +343,13 @@ namespace ds {
     };
 
     class string {
-        char single_char = '\0';
+        char single_char;
         vector<char> m_data;
     public:
-        inline string() {
+        inline string() : single_char(0) {
             
         }
-        inline string(const string&) = default;
-
-        inline string(const char* s, const char* s_end = 0) {
+        inline string(const char* s, const char* s_end = 0) : single_char(0) {
             size_t len = s_end ? (s_end-s) : strlen(s);
             if(len > 0) {
                 m_data.resize(len+1);
@@ -360,7 +359,14 @@ namespace ds {
                 m_data.back() = 0;
             }
         }
-        string& operator=(const string&) = default;
+
+        inline string(const string& o) : single_char(0), m_data(o.m_data) {
+
+        }
+        string& operator=(const string& o) {
+            m_data = o.m_data;
+            return *this;
+        }
 #if IMFD_USE_MOVE
         inline string(string&&) IMFD_NOEXCEPT = default;
         string& operator=(string&&) IMFD_NOEXCEPT = default;
@@ -505,21 +511,30 @@ namespace ds {
         return out;
     }
 
-    inline int own_snprintf(char* buf, size_t buf_size, const char* fmt, ...) {
-        va_list args;
-        va_start(args, fmt);
+    inline int own_vsnprintf(char* buf, size_t buf_size, const char* fmt, va_list args) {
         #ifdef IMGUI_USE_STB_SPRINTF
         int w = stbsp_vsnprintf(buf, (int)buf_size, fmt, args);
         #else
         int w = vsnprintf(buf, buf_size, fmt, args);
         #endif
+        return w;
+    }
+    inline int own_snprintf(char* buf, size_t buf_size, const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        int w = own_vsnprintf(buf, (int)buf_size, fmt, args);
         va_end(args);
         return w;
     }
 
-    template<typename ... Args>
-    char* format_(const char* str, Args ... args) { // https://stackoverflow.com/a/26221725
-        int size_i = own_snprintf(NULL, 0, str, args ...);
+    // https://stackoverflow.com/a/26221725
+    char* format_(const char* fmt, ...) IM_FMTARGS(1);
+    inline char* format_(const char* fmt, ...) { 
+        va_list args;
+        va_start(args, fmt);
+        int size_i = own_vsnprintf(NULL, 0, fmt, args);
+        va_end(args);
+
         if (size_i <= 0) {
             IM_ASSERT(0 && "error during string formatting");
             return NULL;
@@ -529,14 +544,19 @@ namespace ds {
 
         char* out = (char*)IMFD_ALLOC(size_i);
 
-        own_snprintf(out, size_i, str, args ...);
+        va_start(args, fmt);
+        own_vsnprintf(out, size_i, fmt, args);
+        va_end(args);
 
         return out;
     }
 
-    template<typename ... Args>
-    ds::string format(const char* str, Args ... args) { // https://stackoverflow.com/a/26221725
-        int size_i = own_snprintf(NULL, 0, str, args ...);
+    ds::string format(const char* fmt, ...) IM_FMTARGS(1);
+    inline ds::string format(const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        int size_i = own_vsnprintf(NULL, 0, fmt, args);
+        va_end(args);
         if (size_i <= 0) {
             IM_ASSERT(0 && "error during string formatting");
             return NULL;
@@ -547,7 +567,9 @@ namespace ds {
         ds::string out;
         out.resize(size_i-1);
 
-        own_snprintf(out.data(), size_i, str, args ...);
+        va_start(args, fmt);
+        own_vsnprintf(out.data(), size_i, fmt, args);
+        va_end(args);
 
         return imfd_move(out);
     }
@@ -831,11 +853,11 @@ namespace ds {
     class OverrideStack {
     protected:
         ds::vector<T*> arr;
-        size_t start = 0;
-        size_t currSize = 0;
+        size_t start;
+        size_t currSize;
 
     public:
-        OverrideStack(size_t size_) : arr(size_, NULL){
+        OverrideStack(size_t size_) : arr(size_, NULL), start(0), currSize(0){
             
         }
         OverrideStack(const OverrideStack& o) : arr(o.arr.size(), NULL), start(0), currSize(o.currSize) {
@@ -1017,63 +1039,62 @@ namespace ds {
 
         OkT& value() IMFD_NOEXCEPT {
             IM_ASSERT(state == State_Ok);
-            return ok;
+            return *reinterpret_cast<OkT*>(data);
         }
         const OkT& value() const IMFD_NOEXCEPT {
             IM_ASSERT(state == State_Ok);
-            return ok;
+            return *reinterpret_cast<const OkT*>(data);
         }
 
 
         ErrT& error() IMFD_NOEXCEPT {
             IM_ASSERT(state == State_Err);
-            return err;
+            return *reinterpret_cast<ErrT*>(data);
         }
         const ErrT& error() const IMFD_NOEXCEPT {
             IM_ASSERT(state == State_Err);
-            return err;
+            return *reinterpret_cast<const ErrT*>(data);
         }
         _ResultErr<ErrT> error_prop() IMFD_NOEXCEPT {
             IM_ASSERT(state == State_Err);
 #if IMFD_USE_MOVE
-            return _ResultErr<ErrT>(imfd_move(err));
+            return _ResultErr<ErrT>(imfd_move(error()));
 #else
 #ifdef IMGUIFD_ENABLE_STL
             using std::swap;
 #endif
             // this should enable NRVO?
             ErrT err_;
-            swap(err, err_);
-            return _ResultErr<ErrT>(err);
+            swap(error(), err_);
+            return _ResultErr<ErrT>(err_);
 #endif
         }
 
 #if IMFD_USE_MOVE
         template<typename OkT_>
         Result(_ResultOk<OkT_> ok_) : state(State_Ok) {
-            IM_PLACEMENT_NEW(&ok) OkT(imfd_move(ok_.t));
+            IM_PLACEMENT_NEW(data) OkT(imfd_move(ok_.t));
         }
         template<typename ErrT_>
         Result(_ResultErr<ErrT_> err_) : state(State_Err) {
-            IM_PLACEMENT_NEW(&err) ErrT(imfd_move(err_.t));
+            IM_PLACEMENT_NEW(data) ErrT(imfd_move(err_.t));
         }
 #else
         template<typename OkT_>
         Result(_ResultOk<OkT_> ok_) : state(State_Ok) {
-            IM_PLACEMENT_NEW(&ok) OkT(ok_.t);
+            IM_PLACEMENT_NEW(data) OkT(ok_.t);
         }
         template<typename ErrT_>
         Result(_ResultErr<ErrT_> err_) : state(State_Err) {
-            IM_PLACEMENT_NEW(&err) ErrT(err_.t);
+            IM_PLACEMENT_NEW(data) ErrT(err_.t);
         }
 #endif
 
         Result(const Result& o) : state(o.state)  {
-            state = o.state;
             if(state == State_Ok) {
-                IM_PLACEMENT_NEW(&ok) OkT(o.ok);
+                IM_PLACEMENT_NEW(data) OkT(o.value());
             } else if(state == State_Err) {
-                IM_PLACEMENT_NEW(&err) ErrT(o.err);
+                IM_PLACEMENT_NEW(data) ErrT(o.error());
             } else {
                 IM_ASSERT(0);
             }
@@ -1084,9 +1105,9 @@ namespace ds {
             clear();
             state = o.state;
             if(state == State_Ok) {
-                IM_PLACEMENT_NEW(&ok) OkT(o.ok);
+                IM_PLACEMENT_NEW(data) OkT(o.value());
             } else if(state == State_Err) {
-                IM_PLACEMENT_NEW(&err) ErrT(o.err);
+                IM_PLACEMENT_NEW(data) ErrT(o.error());
             } else {
                 IM_ASSERT(0);
             }
@@ -1103,15 +1124,15 @@ namespace ds {
         };
         State state;
         union {
-            OkT ok;
-            ErrT err;
+            char data[sizeof(OkT) > sizeof(ErrT) ? sizeof(OkT) : sizeof(ErrT)];
+            uint64_t _alignment_dummy;
         };
     
         void clear() {
             if(state == State_Ok) {
-                ok.~OkT();
+                reinterpret_cast<OkT*>(data)->~OkT();
             } else if(state == State_Err) {
-                err.~ErrT();
+                reinterpret_cast<ErrT*>(data)->~ErrT();
             } else {
                 IM_ASSERT(0);
             }

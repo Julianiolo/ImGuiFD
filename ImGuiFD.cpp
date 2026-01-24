@@ -18,6 +18,10 @@
 size_t imfd_num_alloc = 0;
 size_t imfd_num_free = 0;
 
+#if IMGUI_VERSION_NUM < 18970
+#define ImGuiSelectableFlags_AllowOverlap ImGuiSelectableFlags_AllowItemOverlap
+#endif
+
 namespace ImGuiFD {
     namespace utils {
         const char* findCharInStrFromBack(char c, const char* str, const char* strEnd = NULL) {
@@ -184,10 +188,14 @@ namespace ImGuiFD {
 
             ImVec2 minPos(10000,10000), maxPos(-10000,-10000);
 
-            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, { 0,0 });
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0,0));
             while (s < text + len && lineInd < maxLines) {
-                const char* wrap = g.Font->CalcWordWrapPositionA(g.FontBakedScale, s, text+len, maxWidth);
-                
+#if IMGUI_VERSION_NUM >= 19200
+                const char* wrap = ImGui::ImFontCalcWordWrapPositionEx(g.Font, g.FontSize, s, text+len, maxWidth);
+#else
+                const char* wrap = g.Font->CalcWordWrapPositionA(g.FontSize/g.Font->FontSize, s, text+len, maxWidth);
+#endif
+
                 ImVec2 lineSize;
                 if (wrap == s || lineInd+1 == maxLines) {
                     lineSize = g.Font->CalcTextSizeA(g.FontSize, maxWidth, 0, s, text + len, &wrap);
@@ -204,7 +212,7 @@ namespace ImGuiFD {
                 }
 
                 {
-                    const ImVec2 cursorPos = cursorStart + ImVec2{ maxWidth / 2 - lineSize.x / 2, ImGui::GetTextLineHeightWithSpacing() * lineInd };
+                    const ImVec2 cursorPos = cursorStart + ImVec2(maxWidth / 2 - lineSize.x / 2, ImGui::GetTextLineHeightWithSpacing() * lineInd);
                     if (cursorPos.x < minPos.x) minPos.x = cursorPos.x;
                     if (cursorPos.y < minPos.y) minPos.y = cursorPos.y;
 
@@ -214,7 +222,15 @@ namespace ImGuiFD {
 
                     ImGui::SetCursorPos(cursorPos);
                     if (lineInd + 1 >= maxLines && wrap < text+len) {
-                        ImGui::RenderTextEllipsis(ImGui::GetWindowDrawList(), ImGui::GetCursorScreenPos(), ImGui::GetCursorScreenPos() + lineSize + ImVec2{0,g.Style.FramePadding.y}, ImGui::GetCursorScreenPos().x + maxWidth, s, text + len, 0);
+                        float ellipsis_max_x = ImGui::GetCursorScreenPos().x + maxWidth;
+                        ImGui::RenderTextEllipsis(
+                            ImGui::GetWindowDrawList(), ImGui::GetCursorScreenPos(), ImGui::GetCursorScreenPos() + lineSize + ImVec2(0,g.Style.FramePadding.y), 
+#if IMGUI_VERSION_NUM < 19200
+                            ellipsis_max_x, // specify clip_max_x
+#endif
+                            ellipsis_max_x, 
+                            s, text + len, NULL
+                        );
                     }
                     else {
                         ImGui::TextUnformatted(s, wrap);
@@ -228,8 +244,8 @@ namespace ImGuiFD {
             ImGui::PopStyleVar();
 
             // convert to screen space
-            minPos += ImGui::GetWindowPos() - ImVec2{ImGui::GetScrollX(), ImGui::GetScrollY()};
-            maxPos += ImGui::GetWindowPos() - ImVec2{ImGui::GetScrollX(), ImGui::GetScrollY()};
+            minPos += ImGui::GetWindowPos() - ImVec2(ImGui::GetScrollX(), ImGui::GetScrollY());
+            maxPos += ImGui::GetWindowPos() - ImVec2(ImGui::GetScrollX(), ImGui::GetScrollY());
 
             return ImRect(minPos, maxPos);
         }
@@ -239,15 +255,15 @@ namespace ImGuiFD {
             ImVec2 avail = ImGui::GetContentRegionAvail();
             ImVec2 size = ImVec2(size_arg.x != 0 ? size_arg.x : avail.x, size_arg.y != 0 ? size_arg.y : ImGui::GetFrameHeight());
 
-            ImVec2 borderPad = { 1,1 };
+            ImVec2 borderPad = ImVec2(1,1);
             ImRect rec(ImGui::GetCursorScreenPos() - borderPad, ImGui::GetCursorScreenPos() + size + borderPad);
             ImGui::GetWindowDrawList()->AddRectFilled(rec.Min, rec.Max, ImColor(ImGui::GetStyleColorVec4(ImGuiCol_ChildBg)));
 
             //ImGui::A();
             ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset = 0;
 
-            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, { 0,0 });
-            ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, {0.5,0.5});
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0,0));
+            ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.5,0.5));
             bool changed = false;
             for (size_t i = 0; i < labelCnt; i++) {
                 if (i > 0)
@@ -307,8 +323,8 @@ namespace ImGuiFD {
     }
 
     static int compareSortSpecs(const void* lhs, const void* rhs){
-        auto& a = (*globalSortData)[*(size_t*)lhs];
-        auto& b = (*globalSortData)[*(size_t*)rhs];
+        DirEntry& a = (*globalSortData)[*(size_t*)lhs];
+        DirEntry& b = (*globalSortData)[*(size_t*)rhs];
 
         if (settings.showDirFirst) {
             if (a.isFolder && !b.isFolder) return -1;
@@ -316,7 +332,7 @@ namespace ImGuiFD {
         }
 
         for (int i = 0; i < globalSortSpecs->SpecsCount; i++) {
-            auto& specs = globalSortSpecs->Specs[i];
+            const ImGuiTableColumnSortSpecs& specs = globalSortSpecs->Specs[i];
             int delta = 0;
             switch (specs.ColumnUserID) {
                 case DEIG_NAME:
@@ -384,7 +400,7 @@ namespace ImGuiFD {
             IMFD_ASSERT_PARANOID(strlen(folder) > 0 && folder[strlen(folder)-1] == '/');
             ds::string f = ds::string(folder, folder + strlen(folder)-1);
             IMFD_ASSERT_PARANOID(strchr(f.c_str(), '/') == NULL && strchr(f.c_str(), ds::preffered_separator) == NULL);
-            parts.push_back(ds::move(f));
+            parts.push_back(imfd_move(f));
         }
 
         ds::string toString() {
@@ -410,7 +426,7 @@ namespace ImGuiFD {
                 out += ds::preffered_separator;
             }
             IMFD_ASSERT_PARANOID(out.size() == len);
-            return ds::move(out);
+            return imfd_move(out);
         }
     private:
         ds::vector<ds::string> splitAbsolutePath(const char* path) {
@@ -437,7 +453,7 @@ namespace ImGuiFD {
                     last = i + 1;
                 }
             }
-            return ds::move(out);
+            return imfd_move(out);
         }
     };
 
@@ -563,13 +579,13 @@ namespace ImGuiFD {
         ds::string searchText;
         Filter searchFilter;
 
-        size_t filterSel = 0; // currently selected filter
+        size_t filterSel; // currently selected filter
         ds::vector<Filter> filters;
 
-        FileFilter() {
+        FileFilter() : filterSel(0) {
 
         }
-        FileFilter(const char* filter) {
+        FileFilter(const char* filter) : filterSel(0) {
             size_t len = filter ? strlen(filter) : 0;
 
             if (len == 0)
@@ -651,8 +667,8 @@ namespace ImGuiFD {
             if(!freeFileDataCallB)
                 return;
 
-            for (auto& l : loaded) {
-                freeFileDataCallB(l);
+            for (ImGuiID* it = loaded.begin(); it < loaded.end(); it++) {
+                freeFileDataCallB(*it);
             }
             loaded.clear();
         }
@@ -683,21 +699,23 @@ namespace ImGuiFD {
         ds::OverrideStack<ds::string> redoStack;
         
         class EntryManager {
-            char* dir = NULL;
+            char* dir;
             ds::vector<DirEntry> data;
             ds::vector<size_t> dataModed;
 
-            bool loadedSucessfully = false;
+            bool loadedSucessfully;
         public:
-            bool sorted = false;
+            bool sorted;
             FileFilter filter;
 
-            EntryManager(const char* filter) : filter(filter) {
+            EntryManager(const char* filter) : dir(NULL), loadedSucessfully(false), sorted(false), filter(filter) {
                 
             }
+        private:
             // don't allow coppying because of dir
-            EntryManager(const EntryManager&) = delete;
-            EntryManager& operator=(const EntryManager&) = delete;
+            EntryManager(const EntryManager&);
+            EntryManager& operator=(const EntryManager&);
+        public:
             ~EntryManager() {
                 IMFD_FREE(dir);
                 dir = NULL;
@@ -716,7 +734,11 @@ namespace ImGuiFD {
                 return true;
             }
 
+#if IMFD_USE_MOVE
             void setEntrysTo(char* new_dir, ds::vector<DirEntry>&& src) {
+#else
+            void setEntrysTo(char* new_dir, const ds::vector<DirEntry>& src) {
+#endif
                 IMFD_FREE(dir);
                 dir = new_dir;
                 data = imfd_move(src);
@@ -1111,7 +1133,7 @@ namespace ImGuiFD {
         ImGuiStyle& style = ImGui::GetStyle();
 
         ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 1);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 0,0 });
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 
         ImGui::BeginChild("DirBar", ImVec2(width, ImGui::GetFrameHeight()));
 
@@ -1125,7 +1147,7 @@ namespace ImGuiFD {
             // draw Background
             ImGui::GetWindowDrawList()->AddRectFilled(recOuter.Min, recOuter.Max, ImColor(ImGui::GetStyleColorVec4(ImGuiCol_TableHeaderBg)));
 
-            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, { 2,0 });
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2, 0));
 
             // calculate total width of all dir buttons
             float totalWidth = 0;
@@ -1207,7 +1229,7 @@ namespace ImGuiFD {
 
             if (ImGuiExt::InputTextString("##editPath", "Enter a Directory", &fd->editOnPathStr, ImGuiInputTextFlags_EnterReturnsTrue)) {
                 endEdit = true;
-                auto absPathRes = Native::getAbsolutePath(fd->editOnPathStr.c_str());
+                ds::Result<ds::string, ds::string> absPathRes = Native::getAbsolutePath(fd->editOnPathStr.c_str());
                 if(absPathRes.has_value()) {
                     const char* absPath = absPathRes.value().c_str();
                     if (Native::isValidDir(absPath)) {
@@ -1255,7 +1277,7 @@ namespace ImGuiFD {
         ImGui::SameLine();
         const char* labels[] = { "T","I" };
         size_t mode = settings.displayMode;
-        if (ImGuiExt::ComboHorizontal("DisplayModeBtn", &mode, labels, 2, { displayModeBtnWidth, 0 })) {
+        if (ImGuiExt::ComboHorizontal("DisplayModeBtn", &mode, labels, 2, ImVec2(displayModeBtnWidth, 0))) {
             settings.displayMode = (uint8_t)mode;
         }
 
@@ -1275,7 +1297,7 @@ namespace ImGuiFD {
     }
 
     static void DrawDirFiles_TableRow(size_t row) {
-        auto& entry = fd->entrys.get(row);
+        DirEntry& entry = fd->entrys.get(row);
         size_t ind = fd->entrys.getActualIndex(row);
 
         ImGui::TableNextRow();
@@ -1299,7 +1321,7 @@ namespace ImGuiFD {
             ImGui::TextUnformatted(buf);
         }
         else
-            ImGui::Dummy({ 0,0 });
+            ImGui::Dummy(ImVec2(0, 0));
 
         ImGui::TableNextColumn();
         if (!isnan(entry.lastAccessed)) {
@@ -1308,7 +1330,7 @@ namespace ImGuiFD {
             ImGui::TextUnformatted(buf);
         }
         else
-            ImGui::Dummy({ 0,0 });
+            ImGui::Dummy(ImVec2(0, 0));
 
         ImGui::TableNextColumn();
         if (!isnan(entry.lastModified)) {
@@ -1317,7 +1339,7 @@ namespace ImGuiFD {
             ImGui::TextUnformatted(buf);
         }
         else
-            ImGui::Dummy({ 0,0 });
+            ImGui::Dummy(ImVec2(0, 0));
     }
     static void DrawDirFiles_Table(float height) {
         if (height <= 0)
@@ -1336,7 +1358,7 @@ namespace ImGuiFD {
 
         //const ImVec2 tableScreenPos = ImGui::GetCursorScreenPos();
 
-        if (ImGui::BeginTable("Dir", 5, flags, {0,height})) {
+        if (ImGui::BeginTable("Dir", 5, flags, ImVec2(0, height))) {
             ImGui::TableSetupScrollFreeze(0, 1); // make Header always visible
             ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_NoSort);
             ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_DefaultSort, 0, DEIG_NAME);
@@ -1585,7 +1607,7 @@ namespace ImGuiFD {
                             ImGui::TextColored(settings.iconTextCol, "%s", iconText);
                         }
 
-                        ImGui::SetCursorPos(ImVec2{ cursorStart.x,textY });
+                        ImGui::SetCursorPos(ImVec2(cursorStart.x, textY));
                         {
                             const bool isRenamingThis = entry.id == fd->renameId;
                             const float maxWidth = cursorEnd.x - cursorStart.x;
@@ -1853,11 +1875,17 @@ namespace ImGuiFD {
 ImGuiFD::RequestFileDataCallback ImGuiFD::FileDataCache::requestFileDataCallB = 0;
 ImGuiFD::FreeFileDataCallback ImGuiFD::FileDataCache::freeFileDataCallB = 0;
 
-ImGuiFD::DirEntry::DirEntry() {
-
-}
 ImGuiFD::DirEntry::DirEntry(const DirEntry& src){
-    operator=(src);
+    id = src.id;
+    error = src.error ? ImStrdup(src.error) : 0;
+    dir   = src.dir;
+    path  = src.path  ? ImStrdup(src.path)  : 0;
+    name  = src.name  ? path + (src.name - src.path) : 0;
+    isFolder = src.isFolder;
+
+    size = src.size;
+    lastAccessed = src.lastAccessed;
+    lastModified = src.lastModified;
 }
 ImGuiFD::DirEntry& ImGuiFD::DirEntry::operator=(const DirEntry& src) {
     this->~DirEntry();
@@ -1915,13 +1943,6 @@ ImGuiFD::DirEntry::~DirEntry() {
     }
     IM_FREE((void*)path);
     path = NULL;
-}
-
-uint64_t ImGuiFD::FileData::getSize() const {
-    uint64_t size = 0;
-    if (thumbnail)
-        size += thumbnail->memSize;
-    return size;
 }
 
 void ImGuiFD::SetFileDataCallback(RequestFileDataCallback loadCallB, FreeFileDataCallback unloadCallB) {

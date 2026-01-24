@@ -47,7 +47,21 @@ typedef int ImGuiFDDialogFlags;
 
 namespace ImGuiFD {
     struct DirEntry {
-        DirEntry();
+        ImGuiID id;
+
+        const char* error; // may be NULL
+
+        // all of these may be NULL
+        const char* dir;
+        const char* path;
+        const char* name;  // this points inside of the path string
+        
+        bool isFolder;
+        uint64_t size;        // (uint64_t)-1 means not available
+        double lastAccessed;  // NAN means not available
+        double lastModified;  // NAN means not available
+
+        inline DirEntry() : id((ImGuiID)-1), error(NULL), dir(NULL), path(NULL), name(NULL), isFolder(false), size((uint64_t)-1), lastAccessed(NAN), lastModified(NAN) {}
         DirEntry(const DirEntry& src);
         DirEntry& operator=(const DirEntry& src);
 #if IMFD_USE_MOVE
@@ -55,25 +69,12 @@ namespace ImGuiFD {
         DirEntry& operator=(DirEntry&& src) noexcept;
 #endif
         ~DirEntry();
-
-        ImGuiID id = (ImGuiID)-1;
-
-        const char* error = NULL;
-
-        const char* dir = NULL;
-        const char* path = NULL;
-        const char* name = NULL;  // this points inside of the path string
-        bool isFolder = false;
-
-        uint64_t size = (uint64_t)-1;
-        double lastAccessed = NAN;
-        double lastModified = NAN;
     };
 
     struct GlobalSettings {
         bool showDirFirst = true;
         bool adjustIconWidth = true;
-        ImVec4 iconTextCol = { .08f, .08f, .78f, 1.0f };
+        ImVec4 iconTextCol = ImVec4(.08f, .08f, .78f, 1.0f);
         const float iconModeSizeDef = 100;
         float iconModeSize = iconModeSizeDef;
 
@@ -84,8 +85,8 @@ namespace ImGuiFD {
         uint8_t displayMode = DisplayMode_Icons;
 
 
-        ImVec4 descTextCol = { .7f, .7f, .7f, 1.0f };
-        ImVec4 errorTextCol = { 1.0f, 0.0f, 0.0f, 1.0f };
+        ImVec4 descTextCol = ImVec4(.7f, .7f, .7f, 1.0f);
+        ImVec4 errorTextCol = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
 
         bool asciiArtIcons = true;
     };
@@ -97,20 +98,18 @@ namespace ImGuiFD {
             ImTextureID texID;
             int width;
             int height;
-            int origWidth = -1;
-            int origHeight = -1;
+            int origWidth;
+            int origHeight;
 
-            uint64_t memSize;
-            void* userData = 0;
+            void* userData;
 
-            bool dimDone = false;
-            bool loadDone = false;
+            bool dimDone;
+            bool loadDone;
+            Image() : texID(0), width(0), height(0), origWidth(0), origHeight(0), userData(NULL), dimDone(false), loadDone(false) {}
         }* thumbnail;
 
-
-        bool loadingFinished = false;
-
-        uint64_t getSize() const;
+        bool loadingFinished;
+        FileData() : thumbnail(NULL), loadingFinished(false) {}
     };
     typedef FileData* (*RequestFileDataCallback)(const DirEntry& entry, int maxDimSize);
     typedef void (*FreeFileDataCallback)(ImGuiID id);
