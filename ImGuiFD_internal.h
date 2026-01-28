@@ -54,12 +54,6 @@ template<typename T> void IMFD_DELETE(T* p) { if (p) { p->~T(); IMFD_FREE(p); } 
 #endif
 
 namespace ds {
-#ifdef _WIN32
-    IMFD_CONSTEXPR char preffered_separator = '\\';
-#else
-    IMFD_CONSTEXPR char preffered_separator = '/';
-#endif
-
 #if IMFD_USE_MOVE
 #ifdef IMGUIFD_ENABLE_STL
     template<class T> using remove_reference = typename std::remove_reference<T>;
@@ -1202,6 +1196,14 @@ namespace ImGuiFD {
     };
 
     namespace Native {
+        #ifdef _WIN32
+            IMFD_CONSTEXPR char preffered_separator = '\\';
+        #else
+            IMFD_CONSTEXPR char preffered_separator = '/';
+        #endif
+        inline bool isPathSep(char c) {
+            return c == '/' || c == preffered_separator;
+        }
         bool isAbsolutePath(const char* path);
         ds::Result<ds::string, ds::string> getAbsolutePath(const char* path);
         bool isValidDir(const char* dir);

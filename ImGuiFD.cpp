@@ -50,73 +50,73 @@ namespace ImGuiFD {
 
             return lastDiv + 1;
         }
-        ds::string fixDirStr(const char* path) {
-            ds::string out;
+        // ds::string fixDirStr(const char* path) {
+        //     ds::string out;
 
-            size_t len = 0;
-            {
-                size_t ind = 0;
-                bool lastWasSlash = false;
-                while (path[ind]) {
-                    char c = path[ind];
-                    switch (c) {
-                    case '/':
-                    case '\\':
-                    {
-                        if (!lastWasSlash) {
-                            lastWasSlash = true;
-                            len++;
-                        }
-                        break;
-                    }
+        //     size_t len = 0;
+        //     {
+        //         size_t ind = 0;
+        //         bool lastWasSlash = false;
+        //         while (path[ind]) {
+        //             char c = path[ind];
+        //             switch (c) {
+        //             case '/':
+        //             case '\\':
+        //             {
+        //                 if (!lastWasSlash) {
+        //                     lastWasSlash = true;
+        //                     len++;
+        //                 }
+        //                 break;
+        //             }
 
-                    default:
-                        lastWasSlash = false;
-                        len++;
-                        break;
-                    }
+        //             default:
+        //                 lastWasSlash = false;
+        //                 len++;
+        //                 break;
+        //             }
 
-                    ind++;
-                }
+        //             ind++;
+        //         }
 
-                out.resize(len);
-            }
+        //         out.resize(len);
+        //     }
 
-            size_t ind = 0;
-            size_t indOut = 0;
-            bool lastWasSlash = false;
-            while (path[ind]) {
-                char c = path[ind];
-                switch (c) {
-                case '\\':
-                    c = '/'; // fall through
-                case '/':
-                {
-                    if (!lastWasSlash) {
-                        lastWasSlash = true;
-                        out[indOut++] = c;
-                    }
-                    break;
-                }
-                default:
-                    lastWasSlash = false;
-                    out[indOut++] = c;
-                    break;
-                }
-                ind++;
-            }
-            out[indOut] = 0;
+        //     size_t ind = 0;
+        //     size_t indOut = 0;
+        //     bool lastWasSlash = false;
+        //     while (path[ind]) {
+        //         char c = path[ind];
+        //         switch (c) {
+        //         case '\\':
+        //             c = '/'; // fall through
+        //         case '/':
+        //         {
+        //             if (!lastWasSlash) {
+        //                 lastWasSlash = true;
+        //                 out[indOut++] = c;
+        //             }
+        //             break;
+        //         }
+        //         default:
+        //             lastWasSlash = false;
+        //             out[indOut++] = c;
+        //             break;
+        //         }
+        //         ind++;
+        //     }
+        //     out[indOut] = 0;
 
-            if (out[out.size() - 1] != '/') {
-                out += "/";
-            }
+        //     if (out[out.size() - 1] != '/') {
+        //         out += "/";
+        //     }
 
-            if (out[0] != '/') {
-                out = ds::string("/") + out;
-            }
+        //     if (out[0] != '/') {
+        //         out = ds::string("/") + out;
+        //     }
 
-            return out;
-        }
+        //     return out;
+        // }
         ds::vector< ds::pair<ds::string, ds::string> > splitInput(const char* str, const char* dir) {
             size_t len = strlen(str);
             ds::string dirStr = dir;
@@ -399,12 +399,12 @@ namespace ImGuiFD {
         void moveDownTo(const char* folder) {
             IMFD_ASSERT_PARANOID(strlen(folder) > 0 && folder[strlen(folder)-1] == '/');
             ds::string f = ds::string(folder, folder + strlen(folder)-1);
-            IMFD_ASSERT_PARANOID(strchr(f.c_str(), '/') == NULL && strchr(f.c_str(), ds::preffered_separator) == NULL);
+            IMFD_ASSERT_PARANOID(strchr(f.c_str(), '/') == NULL && strchr(f.c_str(), Native::preffered_separator) == NULL);
             parts.push_back(imfd_move(f));
         }
 
         ds::string toString() {
-            IMFD_ASSERT_PARANOID(parts.size() == 0 || parts[0] == "/");
+            IMFD_ASSERT_PARANOID(parts.size() != 0 && parts[0] == "/");
             size_t len = 0;
             #if IMFD_UNIX_PATHS
             len += 1;  // unix absolute paths always start with '/'
@@ -418,12 +418,12 @@ namespace ImGuiFD {
             ds::string out;
             out.reserve(len);
             #if IMFD_UNIX_PATHS
-            out += ds::preffered_separator;
+            out += Native::preffered_separator;
             #endif
 
             for (size_t i = 1; i < parts.size(); i++) {
                 out += parts[i];
-                out += ds::preffered_separator;
+                out += Native::preffered_separator;
             }
             IMFD_ASSERT_PARANOID(out.size() == len);
             return imfd_move(out);
@@ -448,10 +448,13 @@ namespace ImGuiFD {
             size_t len = strlen(path);
 
             for (size_t i = last; i < len; i++) {
-                if (path[i] == '/') {
+                if (Native::isPathSep(path[i])) {
                     out.push_back(ds::string(path + last, path + i));
                     last = i + 1;
                 }
+            }
+            if(last < len) {
+                out.push_back(ds::string(path + last, path + len));
             }
             return imfd_move(out);
         }
@@ -823,7 +826,7 @@ namespace ImGuiFD {
         ds::vector< ds::pair<ds::string,ds::string> > inputStrs;
 
         FileDialog(ImGuiID id, const char* str_id, const char* filter, const char* path, ImGuiFDMode mode, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1) : 
-            str_id(str_id), id(id), path(utils::fixDirStr(Native::getAbsolutePath(path).value().c_str())),  // TODO error handling
+            str_id(str_id), id(id), path(Native::getAbsolutePath(path).value().c_str()),  // TODO error handling
             currentPath(this->path.c_str()), oldPath(this->path),
             undoStack(32), redoStack(32),
             entrys(filter),
@@ -1622,7 +1625,7 @@ namespace ImGuiFD {
                                 ImGui::SetKeyboardFocusHere();
                                 if (ImGuiExt::InputTextString("##renameInput", "New Name", &fd->renameStr, ImGuiInputTextFlags_EnterReturnsTrue, ImVec2(inputWidth,0))) {
                                     ds::string path = fd->currentPath.toString();
-                                    IM_ASSERT(path[path.size() - 1] == '/');
+                                    IM_ASSERT(path[path.size() - 1] == Native::preffered_separator);
                                     ds::Result<ds::None, ds::string> res = Native::rename((path + entry.name).c_str(), (path + fd->renameStr).c_str());
                                     if (res.has_value()) {
                                         fd->updateEntrys();
