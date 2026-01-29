@@ -127,6 +127,9 @@ static double winFileTimeToUnix(const FILETIME& ft) {
     if (li.QuadPart == 0) return NAN;
     return (double)li.QuadPart / 1e7 - 11644473600LL;
 }
+static bool isAlpha(char c) {
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+}
 #else
 void statDirEntry(DirEntry* entry) {
     struct stat st;
@@ -148,7 +151,13 @@ void statDirEntry(DirEntry* entry) {
 bool ImGuiFD::Native::isAbsolutePath(const char* path) {
     IM_ASSERT(path != NULL);
 #if !IMFD_UNIX_PATHS
-    return true;  // TODO
+    // UNC path, e.g. \\Some\Resource
+    if(isPathSep(path[0]) && isPathSep(path[1]))
+        return true;
+    // standard absolute path, e.g. C:\Some\Dir
+    if(isAlpha(path[0]) && path[1] == ':' && isPathSep(path[2]))
+        return true;
+    return false;
 #else
     return path[0] == '/';
 #endif
