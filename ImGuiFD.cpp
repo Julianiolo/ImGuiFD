@@ -50,73 +50,6 @@ namespace ImGuiFD {
 
             return lastDiv + 1;
         }
-        // ds::string fixDirStr(const char* path) {
-        //     ds::string out;
-
-        //     size_t len = 0;
-        //     {
-        //         size_t ind = 0;
-        //         bool lastWasSlash = false;
-        //         while (path[ind]) {
-        //             char c = path[ind];
-        //             switch (c) {
-        //             case '/':
-        //             case '\\':
-        //             {
-        //                 if (!lastWasSlash) {
-        //                     lastWasSlash = true;
-        //                     len++;
-        //                 }
-        //                 break;
-        //             }
-
-        //             default:
-        //                 lastWasSlash = false;
-        //                 len++;
-        //                 break;
-        //             }
-
-        //             ind++;
-        //         }
-
-        //         out.resize(len);
-        //     }
-
-        //     size_t ind = 0;
-        //     size_t indOut = 0;
-        //     bool lastWasSlash = false;
-        //     while (path[ind]) {
-        //         char c = path[ind];
-        //         switch (c) {
-        //         case '\\':
-        //             c = '/'; // fall through
-        //         case '/':
-        //         {
-        //             if (!lastWasSlash) {
-        //                 lastWasSlash = true;
-        //                 out[indOut++] = c;
-        //             }
-        //             break;
-        //         }
-        //         default:
-        //             lastWasSlash = false;
-        //             out[indOut++] = c;
-        //             break;
-        //         }
-        //         ind++;
-        //     }
-        //     out[indOut] = 0;
-
-        //     if (out[out.size() - 1] != '/') {
-        //         out += "/";
-        //     }
-
-        //     if (out[0] != '/') {
-        //         out = ds::string("/") + out;
-        //     }
-
-        //     return out;
-        // }
         ds::vector< ds::pair<ds::string, ds::string> > splitInput(const char* str, const char* dir) {
             size_t len = strlen(str);
             ds::string dirStr = dir;
@@ -397,7 +330,7 @@ namespace ImGuiFD {
         }
 
         void moveDownTo(const char* folder) {
-            IMFD_ASSERT_PARANOID(strlen(folder) > 0 && folder[strlen(folder)-1] == '/');
+            IMFD_ASSERT_PARANOID(strlen(folder) > 0 && Native::isPathSep(folder[strlen(folder)-1]));
             ds::string f = ds::string(folder, folder + strlen(folder)-1);
             IMFD_ASSERT_PARANOID(strchr(f.c_str(), '/') == NULL && strchr(f.c_str(), Native::preffered_separator) == NULL);
             parts.push_back(imfd_move(f));
@@ -693,6 +626,7 @@ namespace ImGuiFD {
         EditableDirPath currentPath;
         ds::string oldPath;
         ds::string couldntLoadPath;
+        ds::string couldntLoadErr;
 
         bool forceDisplayAllDirs = false;
 
@@ -725,16 +659,16 @@ namespace ImGuiFD {
             }
 
             // return true if it was able to load the directory
-            bool update(const char* dir_) {
+            ds::Result<ds::None, ds::string> update(const char* dir_) {
                 char* new_dir = ImStrdup(dir_);
                 ds::Result<ds::vector<DirEntry>, ds::string> res = Native::loadDirEntrys(new_dir);
                 if(res.has_err()) {
                     IMFD_FREE(new_dir);
-                    return false;
+                    return res.error_prop();
                 }
                 
                 setEntrysTo(new_dir, imfd_move(res.value()));
-                return true;
+                return ds::Ok();
             }
 
 #if IMFD_USE_MOVE
@@ -812,6 +746,7 @@ namespace ImGuiFD {
         size_t maxSelections;
         
         ds::string inputText = "";
+        ds::string menuError;  // used for both new folder and rename menu
         ds::string newFolderNameStr = "";
         ds::string renameStr = "";
         size_t renameId = (size_t)-1;
@@ -825,8 +760,9 @@ namespace ImGuiFD {
 
         ds::vector< ds::pair<ds::string,ds::string> > inputStrs;
 
-        FileDialog(ImGuiID id, const char* str_id, const char* filter, const char* path, ImGuiFDMode mode, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1) : 
-            str_id(str_id), id(id), path(Native::getAbsolutePath(path).value().c_str()),  // TODO error handling
+    private:
+        FileDialog(ImGuiID id, const char* str_id, const char* filter, const char* abs_path, ImGuiFDMode mode, ImGuiFDDialogFlags flags, size_t maxSelections) : 
+            str_id(str_id), id(id), path(abs_path),
             currentPath(this->path.c_str()), oldPath(this->path),
             undoStack(32), redoStack(32),
             entrys(filter),
@@ -835,6 +771,24 @@ namespace ImGuiFD {
             updateEntrys();
             setInputTextToSelected();
         };
+    public:
+        static FileDialog* make(ImGuiID id, const char* str_id, const char* filter, const char* path, ImGuiFDMode mode, ImGuiFDDialogFlags flags = 0, size_t maxSelections = 1) {
+            ds::Result<ds::string, ds::string> res = Native::getAbsolutePath(path);
+            ds::string abs_path;
+            if(res.has_value()) {
+                abs_path = imfd_move(res.value());
+            } else {
+                ds::Result<ds::string, ds::string> res2 = Native::getAbsolutePath(".");
+                IM_ASSERT(res2.has_value());
+                abs_path = imfd_move(res2.value());
+            }
+            FileDialog* f = IMFD_NEW(FileDialog)(id, str_id, filter, abs_path.c_str(), mode, flags, maxSelections);
+
+            if(res.has_err()) {
+                f->setCouldntLoadPath(path, res.error());
+            }
+            return f;
+        }
 
         void dirSetTo(const char* str) {
             undoStack.push(currentPath.toString());
@@ -928,7 +882,9 @@ namespace ImGuiFD {
         }
         void updateEntrys() {
             ds::string curDirStr = currentPath.toString();
-            if (entrys.update(curDirStr.c_str())) {
+            ds::Result<ds::None, ds::string> res = entrys.update(curDirStr.c_str());
+
+            if (res.has_value()) {
                 inputText = "";
 
                 fileDataCache.clear();
@@ -938,8 +894,7 @@ namespace ImGuiFD {
                 oldPath = curDirStr;
             }
             else {
-                showLoadErrorMsg = true;
-                couldntLoadPath = curDirStr;
+                setCouldntLoadPath(curDirStr, res.error());
                 currentPath.setToPath(oldPath.c_str());
             }
         }
@@ -983,9 +938,15 @@ namespace ImGuiFD {
             IM_ASSERT(ind <= selected.size());
             return entrys.getRaw(*(selected.begin() + ind));
         }
+        void setCouldntLoadPath(const ds::string& couldntLoadPath_, const ds::string& err_msg) {
+            showLoadErrorMsg = true;
+            couldntLoadPath = couldntLoadPath_;
+            couldntLoadErr = err_msg;
+        }
         void resetRename() {
             renameId = (size_t)-1;
             renameStr = "";
+            menuError = "";
         }
     };
 
@@ -1629,11 +1590,11 @@ namespace ImGuiFD {
                                     ds::Result<ds::None, ds::string> res = Native::rename((path + entry.name).c_str(), (path + fd->renameStr).c_str());
                                     if (res.has_value()) {
                                         fd->updateEntrys();
+                                        fd->resetRename();
                                     }
                                     else {
-                                        // TODO
+                                        fd->menuError = imfd_move(res.error());  // TODO display
                                     }
-                                    fd->resetRename();
                                 }
                                 else {
                                     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
@@ -1705,17 +1666,21 @@ namespace ImGuiFD {
 
             ImGuiExt::InputTextString("EnterNewFolderName", "Enter the name of the new folder", &fd->newFolderNameStr);
 
+            if(fd->menuError.size() > 0) {
+                ImGui::TextColored(settings.errorTextCol, "Error: %s", fd->menuError.c_str());
+            }
+
             if (ImGui::Button("OK")) {
                 ds::Result<ds::None, ds::string> res = Native::makeFolder((fd->currentPath.toString() + "/" + fd->newFolderNameStr).c_str());
 
-                if(res.has_err()) {
-                    // TODO:
-                    abort(); // temporary
+                if(res.has_value()) {
+                    fd->newFolderNameStr = "";
+                    fd->needsEntrysUpdate = true;
+                    fd->menuError = "";
+                    ImGui::CloseCurrentPopup();
+                } else {
+                    fd->menuError = imfd_move(res.error());
                 }
-
-                fd->newFolderNameStr = "";
-                fd->needsEntrysUpdate = true;
-                ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
             if (ImGui::Button("Cancel")) {
@@ -1993,7 +1958,7 @@ void ImGuiFD::OpenDialog(const char* str_id, ImGuiFDMode mode, const char* path,
         }
     }
 
-    FileDialog* f = IMFD_NEW(FileDialog)(id, str_id, filter, path, mode, flags, maxSelections);
+    FileDialog* f = FileDialog::make(id, str_id, filter, path, mode, flags, maxSelections);
     openDialogs.insert(id, f);
 }
 
@@ -2031,16 +1996,26 @@ bool ImGuiFD::BeginDialog(ImGuiID id) {
 
         if (fd->showLoadErrorMsg) {
             fd->showLoadErrorMsg = false;
-            ImGui::OpenPopup("Couldn't load directory! ");
+            ImGui::OpenPopup("Couldn't load directory :(");
         }
 
-        if (ImGui::BeginPopupModal("Couldn't load directory! ")) {
-            ImGui::TextUnformatted("Couln't load this directory :(");
+        if (ImGui::BeginPopupModal("Couldn't load directory :(")) {
+            ImGui::TextUnformatted("Couldn't load the directory:");
+
+            ImGui::PushTextWrapPos(ImGui::GetTextLineHeight()*40);
+            ImGui::TextUnformatted(fd->couldntLoadPath.c_str());
+
+            ImGui::Dummy(ImVec2(0, 10));
+
+            ImGui::Text("Error: %s", fd->couldntLoadErr.c_str());
+            ImGui::PopTextWrapPos();
+
+            ImGui::Separator();
+
             if (ImGui::Button("OK")) {
                 ImGui::CloseCurrentPopup();
             }
             ImGui::EndPopup();
-            goto skip;
         }
         
         DrawNavigation();
@@ -2049,7 +2024,6 @@ bool ImGuiFD::BeginDialog(ImGuiID id) {
 
         DrawTextField();
 
-    skip:
         if (!open) {
             fd->actionDone = true;
             fd->selectionMade = false;
