@@ -1204,6 +1204,8 @@ namespace ImGuiFD {
         inline bool isPathSep(char c) {
             return c == '/' || c == preffered_separator;
         }
+        ds::Result<ds::None, ds::string> validateFilename(const char* filename);
+
         bool isAbsolutePath(const char* path);
         ds::Result<ds::string, ds::string> getAbsolutePath(const char* path);
         bool isValidDir(const char* dir);

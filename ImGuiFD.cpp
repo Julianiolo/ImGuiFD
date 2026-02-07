@@ -746,10 +746,14 @@ namespace ImGuiFD {
         size_t maxSelections;
         
         ds::string inputText = "";
-        ds::string menuError;  // used for both new folder and rename menu
+        ds::string newFolderError;  // used for both new folder and rename menu
         ds::string newFolderNameStr = "";
+
+        ds::string renameError;
+        const char* renameOldPath = NULL;
         ds::string renameStr = "";
         size_t renameId = (size_t)-1;
+        bool plsDoRename = false;
 
         bool needsEntrysUpdate = false;
 
@@ -943,10 +947,36 @@ namespace ImGuiFD {
             couldntLoadPath = couldntLoadPath_;
             couldntLoadErr = err_msg;
         }
+        void plsRename() {
+            plsDoRename = true;
+        }
+        void doRenaming() {
+            if(!plsDoRename) return;
+            plsDoRename = false;
+
+            {
+                ds::Result<ds::None, ds::string> res = Native::validateFilename(renameStr.c_str());
+                if(res.has_err()) {
+                    renameError = imfd_move(res.error());
+                    return;
+                }
+            }
+
+            ds::string path = currentPath.toString();
+            IM_ASSERT(path[path.size() - 1] == Native::preffered_separator);
+            ds::Result<ds::None, ds::string> res = Native::rename(renameOldPath, (path + renameStr).c_str());
+            if (res.has_value()) {
+                updateEntrys();
+                resetRename();
+            }
+            else {
+                renameError = imfd_move(res.error());
+            }
+        }
         void resetRename() {
             renameId = (size_t)-1;
             renameStr = "";
-            menuError = "";
+            renameError = "";
         }
     };
 
@@ -1276,7 +1306,20 @@ namespace ImGuiFD {
         CheckDoubleClick(entry);
 
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted(entry.name);
+        const bool isRenamingThis = entry.id == fd->renameId;
+        if(!isRenamingThis) {
+            ImGui::TextUnformatted(entry.name);
+        } else {
+            fd->renameOldPath = entry.path;
+            if (ImGuiExt::InputTextString("##renameInput", "New Name", &fd->renameStr, ImGuiInputTextFlags_EnterReturnsTrue)) {
+                fd->plsRename();
+            }
+            else {
+                if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+                    fd->resetRename();
+                }
+            }
+        }
 
         ImGui::TableNextColumn();
         if (entry.size != (uint64_t)-1) {
@@ -1580,21 +1623,14 @@ namespace ImGuiFD {
                                 ImGuiExt::TextWrappedCentered(entry.name ? entry.name : "?", maxWidth, maxTextLines);
                             }
                             else {
+                                fd->renameOldPath = entry.path;
+                                
                                 const float textWidth = ImGui::CalcTextSize(fd->renameStr.c_str()).x + ImGui::GetStyle().FramePadding.x*2;
                                 const float inputWidth = textWidth < 70 ? 70 : textWidth;
                                 ImGui::SetCursorPosX(ImGui::GetCursorPosX() + maxWidth / 2 - inputWidth / 2);
                                 ImGui::SetKeyboardFocusHere();
                                 if (ImGuiExt::InputTextString("##renameInput", "New Name", &fd->renameStr, ImGuiInputTextFlags_EnterReturnsTrue, ImVec2(inputWidth,0))) {
-                                    ds::string path = fd->currentPath.toString();
-                                    IM_ASSERT(path[path.size() - 1] == Native::preffered_separator);
-                                    ds::Result<ds::None, ds::string> res = Native::rename((path + entry.name).c_str(), (path + fd->renameStr).c_str());
-                                    if (res.has_value()) {
-                                        fd->updateEntrys();
-                                        fd->resetRename();
-                                    }
-                                    else {
-                                        fd->menuError = imfd_move(res.error());  // TODO display
-                                    }
+                                    fd->plsRename();
                                 }
                                 else {
                                     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
@@ -1666,8 +1702,8 @@ namespace ImGuiFD {
 
             ImGuiExt::InputTextString("EnterNewFolderName", "Enter the name of the new folder", &fd->newFolderNameStr);
 
-            if(fd->menuError.size() > 0) {
-                ImGui::TextColored(settings.errorTextCol, "Error: %s", fd->menuError.c_str());
+            if(fd->newFolderError.size() > 0) {
+                ImGui::TextColored(settings.errorTextCol, "Error: %s", fd->newFolderError.c_str());
             }
 
             if (ImGui::Button("OK")) {
@@ -1676,10 +1712,10 @@ namespace ImGuiFD {
                 if(res.has_value()) {
                     fd->newFolderNameStr = "";
                     fd->needsEntrysUpdate = true;
-                    fd->menuError = "";
+                    fd->newFolderError = "";
                     ImGui::CloseCurrentPopup();
                 } else {
-                    fd->menuError = imfd_move(res.error());
+                    fd->newFolderError = imfd_move(res.error());
                 }
             }
             ImGui::SameLine();
@@ -1707,6 +1743,27 @@ namespace ImGuiFD {
             ImGui::OpenPopup("ContextMenu");
         }
         DrawContextMenu();
+    }
+    static void DrawRenameErrorPopup() {
+        if(fd->renameError.size() == 0) return;
+
+        ImGui::SetNextWindowFocus();
+        ImGui::SetNextWindowSize(ImVec2(200, 0));
+        ImVec2 p = ImGui::GetWindowPos();
+        ImVec2 s = ImGui::GetWindowSize();
+        ImGui::SetNextWindowPos(p + s / 2.0f, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        if(ImGui::Begin("renameError", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoResize)) {
+            ImGui::TextColored(settings.errorTextCol, "Error:");
+            ImGui::TextWrapped("%s", fd->renameError.c_str());
+            
+            float w = ImGui::GetContentRegionAvail().x;
+            float btn_w = 40;
+            ImGui::SetCursorPosX((w-btn_w)/2);
+            if(ImGui::Button("OK", ImVec2(btn_w, 0))) {
+                fd->renameError = "";
+            }
+            ImGui::End();
+        }
     }
 
     static bool canOpenNow() {
@@ -2023,6 +2080,9 @@ bool ImGuiFD::BeginDialog(ImGuiID id) {
         DrawDirFiles();
 
         DrawTextField();
+
+        fd->doRenaming();
+        DrawRenameErrorPopup();
 
         if (!open) {
             fd->actionDone = true;

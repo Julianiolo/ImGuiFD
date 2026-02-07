@@ -148,6 +148,32 @@ void statDirEntry(DirEntry* entry) {
 }
 #endif
 
+ds::Result<ds::None, ds::string> ImGuiFD::Native::validateFilename(const char* filename) {
+    size_t l = strlen(filename);
+
+    if(l == 0) return ds::Err("filename is empty");
+
+    for(size_t i = 0; i<l; i++) {
+        char c = filename[i];
+        if(c > 127) continue;  // unicode
+
+#ifdef _WIN32
+        // https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
+        if(c <= 31) return ds::Err(ds::format("Non text char 0x%x at %d", c, (int)i));
+
+        IMFD_CONSTEXPR const char illegal_chars[] = {'<', '>', ':', '"', '/', '\\', '|', '?', '*'};
+        for(size_t j = 0; j<sizeof(illegal_chars); j++) {
+            if(c == illegal_chars[j])
+                return ds::Err(ds::format("Illegal char '%c' at %d", c, (int)i));
+        }
+#else
+        if(c == '/') return ds::Err(ds::format("Illegal char '%c' at %d", c, (int)i));
+#endif
+    }
+    return ds::Ok();
+}
+
+
 bool ImGuiFD::Native::isAbsolutePath(const char* path) {
     IM_ASSERT(path != NULL);
 #if !IMFD_UNIX_PATHS
