@@ -151,7 +151,7 @@ void statDirEntry(DirEntry* entry) {
 ds::Result<ds::None, ds::string> ImGuiFD::Native::validateFilename(const char* filename) {
     size_t l = strlen(filename);
 
-    if(l == 0) return ds::Err("filename is empty");
+    if(l == 0) return ds::Err<ds::string>("filename is empty");
 
     for(size_t i = 0; i<l; i++) {
         char c = filename[i];

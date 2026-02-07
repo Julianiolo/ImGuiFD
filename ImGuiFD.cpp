@@ -801,6 +801,7 @@ namespace ImGuiFD {
             currentPath.setToPath(str);
 
             needsEntrysUpdate = true;
+            forceDisplayAllDirs = false;
         }
         void dirGoUp() {
             undoStack.push(currentPath.toString());
@@ -808,6 +809,7 @@ namespace ImGuiFD {
 
             if (currentPath.goUp())
                 needsEntrysUpdate = true;
+            forceDisplayAllDirs = false;
         }
         void dirShrinkTo(size_t ind) {
             IM_ASSERT(ind < currentPath.parts.size());
@@ -818,6 +820,7 @@ namespace ImGuiFD {
 
             currentPath.setBackToInd(ind);
             needsEntrysUpdate = true;
+            forceDisplayAllDirs = false;
         }
         void dirMoveDownInto(const char* folder) {
             undoStack.push(currentPath.toString());
@@ -1126,12 +1129,16 @@ namespace ImGuiFD {
         const ImRect recOuter(rec.Min - borderPad, rec.Max + borderPad);
         ImGuiStyle& style = ImGui::GetStyle();
 
-        ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 1);
+        ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 3);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 
-        ImGui::BeginChild("DirBar", ImVec2(width, ImGui::GetFrameHeight()));
+        ImGuiWindowFlags childFlags = 0;
+        if(fd->forceDisplayAllDirs)
+            childFlags |= ImGuiWindowFlags_HorizontalScrollbar;
 
-        ImVec2 cursorStartPos = ImGui::GetCursorPos();
+        ImGui::BeginChild("DirBar", ImVec2(width, ImGui::GetFrameHeight()), false, childFlags);
+
+        ImVec2 cursorScreenStartPos = ImGui::GetCursorScreenPos();
 
         if (!fd->isEditingPath) {
             bool enterEditMode = false;
@@ -1172,6 +1179,16 @@ namespace ImGuiFD {
             if (doesntFit) {
                 startOn = lastToFit;
 
+                if (ImGui::Button("...")) { // ellipse Button
+                    fd->forceDisplayAllDirs = true;
+                }
+
+                ImGui::SameLine();
+
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+                ImGui::BeginChild("child", ImVec2(0, 0), false, ImGuiWindowFlags_NoScrollWithMouse);
+                ImGui::SetScrollX(ImGui::GetScrollMaxX());
+
                 ImGui::SetCursorPosX(ImGui::GetCursorPosX() + width - totalWidth);
             }
 
@@ -1185,19 +1202,15 @@ namespace ImGuiFD {
                 }
                 ImGui::PopID();
             }
-            ImGui::PopStyleVar();
-
+            
             
             if (doesntFit) {
-                // draw ellipse last so it overlapps
-                ImGui::SameLine();
-                ImGui::SetCursorPos(cursorStartPos);
-                ImGui::GetWindowDrawList()->AddRectFilled(ImGui::GetCursorScreenPos(), ImGui::GetCursorScreenPos() + ImVec2(ellipseBtnWidth, ImGui::GetFrameHeight()), ImColor(ImGui::GetStyleColorVec4(ImGuiCol_TableHeaderBg)));
-                if (ImGui::Button("...")) { // ellipse Button
-                    fd->forceDisplayAllDirs = true;
-                }
+                // draw ellipse last so it overlaps
+                ImGui::EndChild();
+                ImGui::PopStyleVar();
             }
-
+            
+            ImGui::PopStyleVar();
 
             ImGui::EndGroup();
 
