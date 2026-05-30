@@ -124,7 +124,7 @@ namespace ImGuiFD {
             ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0,0));
             while (s < text + len && lineInd < maxLines) {
 #if IMGUI_VERSION_NUM >= 19200
-                const char* wrap = ImGui::ImFontCalcWordWrapPositionEx(g.Font, g.FontSize, s, text+len, maxWidth);
+                const char* wrap = g.Font->CalcWordWrapPosition(g.FontSize, s, text+len, maxWidth);
 #else
                 const char* wrap = g.Font->CalcWordWrapPositionA(g.FontSize/g.Font->FontSize, s, text+len, maxWidth);
 #endif
